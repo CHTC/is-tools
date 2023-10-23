@@ -1,125 +1,66 @@
 import os
 import yaml
 
-ext = "/etc/sysconfig/network-scripts/ifcfg-"
-skipped = { "spaldingwcic0.chtc.wisc.edu.yaml", "centos7", "centos8", 
-            "unl-svc-1.facility.path-cc.io.yaml", "_sort.py", "_out.txt" }
+XT = "/etc/sysconfig/network-scripts/ifcfg-"
+SKIP = { "spaldingwcic0.chtc.wisc.edu.yaml", "unl-svc-1.facility.path-cc.io.yaml",
+         "path-ap2001.chtc.wisc.edu.yaml", "glidein-cm3000.chtc.wisc.edu.yaml"}
+MP = {"vxlan123": ["0601", "1200"],
+      "eth0": ["0600", "0601"],
+      "eth1": ["0600", "0601"],
+      "bond0": ["0601"],
+      "ib0": ["0602"],
+      "br0": ["0601"]}
 
-for file in os.listdir("."):
-  if file in skipped:
+
+for file in os.listdir("./nodes"):
+  if file in SKIP:
     continue
-
-  print(f'---{file.split(".")[0]}---')
-
-  with open(file, "r") as stream:
+  
+  # checking if file is good to parse
+  with open(f'./nodes/{file}', "r") as stream:
     try: 
       data = yaml.safe_load(stream)
+      print(f'---{file.split(".")[0]}---')
     except yaml.YAMLError as exc:
       print(file)
       print(f'!!! ERROR {exc} ERROR !!!')
+      exit(0)
 
-    ################################################################################################
-    # BMC
+    #########
+    ## BMC ##
+    #########
+    # TODO: looks like it will always be same xxx.xxx.xxx.??? so this might be subnet issue
     if "bmc" in data.keys():
-      if "lan" in data["bmc"].keys():
-        print(f'BMC Network:')
-        print(f'    {data["bmc"]["lan"]["ip_address"]}')
-        if "default_gateway_ip" in data["bmc"]["lan"].keys():
-          print(f'    {data["bmc"]["lan"]["default_gateway_ip"]}')
+      print(f'BMC Networks:')
+      print(f'    {data["bmc"]["lan"]["ip_address"]}')
+      if "default_gateway_ip" in data["bmc"]["lan"].keys():
+        print(f'    {data["bmc"]["lan"]["default_gateway_ip"]}')
 
-    ################################################################################################
-    # DATA
-    ipaddr = ""
-
+    ##########
+    ## DATA ##
+    ##########
     print(f'Data Networks:')
+
     ### CENTOS7 ###
-    try:
-      ipaddr = data["network"]["bridge_static"]["br0"]["ipaddress"]
-      # print(f'{file.split(".")[0]} default network (centos7): {ipaddr}')
-      # os.rename(file, f'./centos7/{file}')
-      print(f'    {ipaddr}')
-    except KeyError:
-      pass
+    if "network" in data.keys():
+      if "default_gateway" in data["network"]:
+        print(f'    {data["network"]["default_gateway"]}')
+      if "bridge_static" in data["network"]:
+        print(f'    {data["network"]["bridge_static"]["br0"]["ipaddress"]}')
+      continue
 
-    try:
-      ipaddr = data["network"]["default_gateway"]
-      print(f'    {ipaddr}')
-    except KeyError:
-      pass
-      
-
-    ### CENTOS8 ###
+    ### CENTOS8 ###    
     if "file" in data.keys():
-      if f"{ext}vxlan123" in data["file"].keys():
-        if "content" in data["file"][f"{ext}vxlan123"].keys():
-          if "1200" in data["file"][f"{ext}vxlan123"]["content"].keys():
-            ipaddr = data["file"][f"{ext}vxlan123"]["content"]["1200"].keys()
-            ipaddr = list(ipaddr)[1].split("=")[1]
-            # os.rename(file, f'./centos8/vxlan123/{file}')
-            # print(f'{file.split(".")[0]} default network (centos8): {ipaddr}')
-            print(f'    {ipaddr}')
+      for k, vs in MP.items():
+        for v in vs:
+          # using a try-except instead of nested ifs to check if the specific yaml field containing
+          # the IP address exists in the current file
+          try:
+            if (ip := data["file"][f'{XT}{k}']["content"][v]) != False:
+              if v == "1200" and k == "vxlan123":
+                print(f'    {list(ip.keys())[1].split("=")[1]}')
+              else:
+                print(f'    {list(ip.keys())[0].split("=")[1]}')
 
-          if "0601" in data["file"][f"{ext}vxlan123"]["content"].keys():
-            ipaddr = data["file"][f"{ext}vxlan123"]["content"]["0601"].keys()
-            ipaddr = list(ipaddr)[0].split("=")[1]
-            # os.rename(file, f'./centos8/vxlan123/{file}')
-            # print(f'{file.split(".")[0]} default network (centos8): {ipaddr}')
-            print(f'    {ipaddr}')
-
-    
-      if f"{ext}eth0" in data["file"].keys():
-        if "content" in data["file"][f"{ext}eth0"].keys():
-          if "0601" in data["file"][f"{ext}eth0"]["content"].keys():
-            ipaddr = data["file"][f"{ext}eth0"]["content"]["0601"].keys()
-            # os.rename(file, f'./centos8/eth0/{file}')
-            ipaddr = list(ipaddr)[0].split("=")[1]
-            print(f'    {ipaddr}')
-
-          elif "0600" in data["file"][f"{ext}eth0"]["content"].keys():
-            ipaddr = data["file"][f"{ext}eth0"]["content"]["0600"].keys()
-            # os.rename(file, f'./centos8/eth0/{file}')
-            ipaddr = list(ipaddr)[0].split("=")[1]
-            print(f'    {ipaddr}')
-
-      if f"{ext}eth1" in data["file"].keys():
-        if "content" in data["file"][f"{ext}eth1"].keys():
-          if "0601" in data["file"][f"{ext}eth1"]["content"].keys():
-            ipaddr = data["file"][f"{ext}eth1"]["content"]["0601"].keys()
-            # os.rename(file, f'./centos8/eth0/{file}')
-            ipaddr = list(ipaddr)[0].split("=")[1]
-            print(f'    {ipaddr}')
-
-          elif "0600" in data["file"][f"{ext}eth1"]["content"].keys():
-            ipaddr = data["file"][f"{ext}eth1"]["content"]["0600"].keys()
-            # os.rename(file, f'./centos8/eth0/{file}')
-            ipaddr = list(ipaddr)[0].split("=")[1]
-            print(f'    {ipaddr}')
-
-
-      if f"{ext}bond0" in data["file"].keys():
-        if "content" in data["file"][f"{ext}bond0"].keys():
-          if "0601" in data["file"][f"{ext}bond0"]["content"].keys():
-            ipaddr = data["file"][f"{ext}bond0"]["content"]["0601"].keys()
-            # os.rename(file, f'./centos8/bond0/{file}')
-            ipaddr = list(ipaddr)[0].split("=")[1]
-            print(f'    {ipaddr}')
-
-      if f"{ext}ib0" in data["file"].keys():
-        if "content" in data["file"][f"{ext}ib0"].keys():
-          if "0602" in data["file"][f"{ext}ib0"]["content"].keys():
-            ipaddr = data["file"][f"{ext}ib0"]["content"]["0602"].keys()
-            # os.rename(file, f'./centos8/ib0/{file}')
-            ipaddr = list(ipaddr)[0].split("=")[1]
-            print(f'    {ipaddr}')
-
-      if f"{ext}br0" in data["file"].keys():
-        if "content" in data["file"][f"{ext}br0"].keys():
-          if "0601" in data["file"][f"{ext}br0"]["content"].keys():
-            ipaddr = data["file"][f"{ext}br0"]["content"]["0601"].keys()
-            # os.rename(file, f'./centos8/br0/{file}')
-            ipaddr = list(ipaddr)[0].split("=")[1]
-            print(f'    {ipaddr}')
-
-      # if ipaddr:
-      #   ipaddr = list(ipaddr)[0].split("=")[1]
-        # print(f'{file.split(".")[0]} default network (centos8): {ipaddr}')
+          except KeyError as err:
+            pass
