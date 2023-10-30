@@ -1,16 +1,46 @@
 import os
 import yaml
+from collections import defaultdict
+import pprint
+
+# TODO: map each node to its "site" and then look for network/host addrs based on that
 
 XT = "/etc/sysconfig/network-scripts/ifcfg-"
+sites_opts = ["eth0", "bond0", "br0"]
+subnets = defaultdict()
+
+for file in os.listdir("./sites"):
+  with open(f'./sites/{file}', "r") as stream:
+    try: 
+      data = yaml.safe_load(stream)
+    except yaml.YAMLError as exc:
+      print(file)
+      print(f'!!! ERROR {exc} ERROR !!!')
+      exit(0)
+
+  subnets[file] = defaultdict()
+  for t in sites_opts:
+    try:
+      subnets[file][t] = list(data["file"][f'{XT}{t}']["content"]["0701"].keys())[0].split("=")[1]
+    except KeyError as err:
+      try:
+        if data["file"][f'{XT}{t}']["content"]["0700"]:
+          subnets[file][t] = list(data["file"][f'{XT}{t}']["content"]["0700"].keys())[0].split("=")[1]
+      except KeyError as err:
+        pass
+
+pprint.pprint(subnets)
+
+#####
+
 SKIP = { "spaldingwcic0.chtc.wisc.edu.yaml", "unl-svc-1.facility.path-cc.io.yaml",
          "path-ap2001.chtc.wisc.edu.yaml", "glidein-cm3000.chtc.wisc.edu.yaml"}
-MP = {"vxlan123": ["0601", "1200"],
-      "eth0": ["0600", "0601"],
-      "eth1": ["0600", "0601"],
-      "bond0": ["0601"],
-      "ib0": ["0602"],
-      "br0": ["0601"]}
-
+nodes_mp = {"vxlan123": ["0601", "1200"],
+            "eth0": ["0600", "0601"],
+            "eth1": ["0600", "0601"],
+            "bond0": ["0601"],
+            "ib0": ["0602"],
+            "br0": ["0601"]}
 
 for file in os.listdir("./nodes"):
   if file in SKIP:
@@ -51,7 +81,7 @@ for file in os.listdir("./nodes"):
 
     ### CENTOS8 ###    
     if "file" in data.keys():
-      for k, vs in MP.items():
+      for k, vs in nodes_mp.items():
         for v in vs:
           # using a try-except instead of nested ifs to check if the specific yaml field containing
           # the IP address exists in the current file
