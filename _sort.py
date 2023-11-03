@@ -9,6 +9,36 @@ XT = "/etc/sysconfig/network-scripts/ifcfg-"
 sites_opts = ["eth0", "bond0", "br0"]
 subnets = defaultdict()
 
+# TODO: how do i type enforce this like in swift
+"""
+Returns tuple of (NETWORK, HOST) addresses after applying subnet mask
+"""
+def get_addresses_from_subnet_mask(addr, mask):
+  _addr = list(map(int, addr.split(".")))
+  _mask = list(map(int, mask.split(".")))
+  pos = []
+  neg = []
+  
+  for i in range(4):
+    ba = bin(_addr[i])[2:].zfill(8)
+    bm = bin(_mask[i])[2:].zfill(8)
+
+    for j in range(min(len(ba), len(bm))):
+      if bm[j] == "1":
+        pos.append(ba[j])
+        neg.append("0")
+      else:
+        pos.append("0")
+        neg.append(ba[j])
+
+    pos.append(".")
+    neg.append(".")
+  
+  return (''.join(pos[:-1]), ''.join(neg[:-1]))
+
+print(get_addresses_from_subnet_mask("192.168.123.132", "255.255.255.0"))
+
+
 for file in os.listdir("./sites"):
   with open(f'./sites/{file}', "r") as stream:
     try: 
