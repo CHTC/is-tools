@@ -5,7 +5,19 @@ Subnet mask calculations
 
 def get_addresses_from_subnet_mask(addr: str, mask: str) -> tuple:
   """
-  Returns tuple of (NETWORK, HOST) addresses after applying subnet mask
+  Calculates network and host addresses using subnet masks and node IP addresses.
+
+  Parameters
+  ----------
+  addr : str
+    node IP address
+  mask : str
+    subnet mask
+
+  Returns
+  -------
+  tuple
+    tuple in the form of (network, host) addresses after applying subnet mask
   """
   _addr = list(map(int, addr.split(".")))
   _mask = list(map(int, mask.split(".")))
@@ -28,3 +40,11 @@ def get_addresses_from_subnet_mask(addr: str, mask: str) -> tuple:
     neg.append(".")
   
   return (''.join(pos[:-1]), ''.join(neg[:-1]))
+
+
+def binary_to_value_ip(ip: str):
+  res = []
+  for v in ip.split("."):
+    res.append(str(int(v, 2)))
+    res.append(".")
+  return ''.join(res[:-1])

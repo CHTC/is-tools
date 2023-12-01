@@ -2,7 +2,7 @@
 Deals with scraping and formatting information from yaml files.
 """
 
-import os
+import glob
 import yaml
 from collections import defaultdict
 
@@ -54,9 +54,10 @@ def get_subnets() -> dict:
   """
   subnets = defaultdict()
 
-  for file in os.listdir("./sites"):
-    data = get_yaml_file(f'./sites/{file}')
-    subnets[file] = defaultdict()
+  for file in glob.glob("./sites/*.yaml"):
+    data = get_yaml_file(file)
+    f = file.split("/")[2].split(".")[0]
+    subnets[f] = defaultdict()
   
     for t in ["eth0", "bond0", "br0"]: # the other types don't show up or don't have notable info
       mask = ""
@@ -72,7 +73,7 @@ def get_subnets() -> dict:
         pass
 
       if mask:
-        subnets[file][t] = list(mask)[0].split("=")[1]
+        subnets[f][t] = list(mask)[0].split("=")[1]
 
   return subnets
 
@@ -90,11 +91,11 @@ def get_nodes() -> dict:
   addrs = defaultdict()
   faults = []
 
-  for file in os.listdir("./nodes"):
-    with open(f'./nodes/{file}', "r") as stream:
+  for file in glob.glob("./nodes/*.yaml"):
+    with open(file, "r") as stream:
       try: 
         data = yaml.safe_load(stream)
-        f = file.split(".")[0]
+        f = file.split("/")[2].split(".")[0]
         addrs[f] = defaultdict()
 
         if "bmc" in data.keys():
@@ -112,7 +113,7 @@ def get_nodes() -> dict:
     print("Found malformed YAML files. List of IP addresses is likely incomplete.")
     for item in faults:
       print(f'{item[0]}: {item[1]}')
-    
+     
   return addrs
 
 
@@ -122,9 +123,13 @@ def get_bmc_addrs(node: dict) -> list:
 
   Parameters
   ----------
+  node : dict
+    dictionary representation of the current node
 
   Returns
   -------
+  list
+    list of strings representing IP addresses
   """
   if "default_gateway_ip" in node["bmc"]["lan"].keys():
     return [
@@ -140,9 +145,13 @@ def get_primary_addrs(node: dict) -> list:
 
   Parameters
   ----------
+  node : dict
+    dictionary representation of the current node
 
   Returns
   -------
+  list
+    list of strings representing IP addresses
   """
   addrs = []
 
@@ -151,7 +160,7 @@ def get_primary_addrs(node: dict) -> list:
     if "default_gateway" in node["network"]:
       addrs.append(node["network"]["default_gateway"])
     if "bridge_static" in node["network"]:
-      addrs.append(node["network"]["bridge_static"]["br0"]["ipaddress"])
+      addrs.append(["br0", node["network"]["bridge_static"]["br0"]["ipaddress"]])
 
   ### CENTOS8 ###    
   elif "file" in node.keys():
@@ -162,9 +171,9 @@ def get_primary_addrs(node: dict) -> list:
         try:
           if (ip := node["file"][f'{XT}{k}']["content"][v]) != False:
             if v == "1200" and k == "vxlan123":
-              addrs.append(list(ip.keys())[1].split("=")[1])
+              addrs.append([k, list(ip.keys())[1].split("=")[1]])
             else:
-              addrs.append(list(ip.keys())[0].split("=")[1])
+              addrs.append([k, list(ip.keys())[0].split("=")[1]])
 
         except KeyError:
           pass
