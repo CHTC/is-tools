@@ -1,5 +1,5 @@
 """
-Subnet mask calculations
+Subnet mask and IP address calculations/conversions
 """
 
 
@@ -42,9 +42,60 @@ def get_addresses_from_subnet_mask(addr: str, mask: str) -> tuple:
   return (''.join(pos[:-1]), ''.join(neg[:-1]))
 
 
-def binary_to_value_ip(ip: str):
+def binary_to_value_ip(ip: str) -> str:
+  """
+  Converts IP from binary string to integer string.
+
+  Parameters
+  ----------
+  ip : str
+    binary representation of address, (with or without "." separators)
+
+  Returns
+  -------
+  str
+    integer representation of address
+  """
   res = []
-  for v in ip.split("."):
-    res.append(str(int(v, 2)))
-    res.append(".")
+  if "." in ip:
+    for v in ip.split("."):
+      res.append(str(int(v, 2)))
+      res.append(".")
+  else:
+    for v in range(4):
+      res.append(str(int(ip[v*8:(v+1)*8], 2)))
+      res.append(".")
   return ''.join(res[:-1])
+
+
+def count_ones_bits(ip: str) -> int:
+  """
+  Counts the numbers of ones bits in the IP.
+
+  Parameters
+  ----------
+  ip : str
+    integer representation of address
+
+  Returns
+  -------
+  int
+    number of ones bits
+  """
+  bits = 0
+  for v in ip.split("."):
+    for b in bin(int(v))[2:]:
+      if b == "1":
+        bits += 1
+  return bits
+
+
+def construct_ip(host: str, bits: int) -> list:
+  ips = []
+  pre = [bin(int(p))[2:].zfill(8) for p in host.split(".")]
+  bin_hst = ''.join(pre)
+
+  for n in range(2 ** (32 - bits)):
+    x = f'{bin_hst[:bits]}{bin(n)[2:].zfill(32 - bits)}'
+    ips.append(binary_to_value_ip(x))
+  return ips
