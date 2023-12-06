@@ -1,5 +1,3 @@
-# TODO: map each node to its "site" and then look for network/host addrs based on that
-
 from _file import *
 from _sort import *
 import pprint
@@ -29,12 +27,7 @@ mp = {
   "4": "oneneck"
 }
 
-# count_primary_processed = 0
-# count_primary = 0
 for n in nodes:
-  # if nodes[n]["primary"]:
-    # count_primary += 1
-
   if n[-4] in mp.keys():
     if nodes[n]["primary"]:
       msk_key = nodes[n]["primary"][0][0]
@@ -44,7 +37,6 @@ for n in nodes:
       net = binary_to_value_ip(net)
 
       final_sites[msk][net] = final_sites[msk].get(net, []) + [adr]
-      # count_primary_processed += 1
 
       if "bmc" in nodes[n] and nodes[n]["bmc"]:
         adr = nodes[n]["bmc"][0]
@@ -52,10 +44,6 @@ for n in nodes:
         net = binary_to_value_ip(net)
         final_sites[msk][net] = final_sites[msk].get(net, []) + [adr]
 
-    
-# how are we losing data?
-# print(len(nodes), count_primary, count_primary_processed)
-# pprint.pprint(final_sites)
 
 for subnet in final_sites:
   msk_cnt = count_ones_bits(subnet)
