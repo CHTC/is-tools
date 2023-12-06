@@ -1,22 +1,25 @@
-# TODO: map each node to its "site" and then look for network/host addrs based on that
-
 from _file import *
 from _sort import *
+from _show import *
 import pprint
+import sys
+import time
 
 
-def print_nodes(nodes: dict):
-  for n in nodes:
-    print(f'---{n}---')
-    if "bmc" in nodes[n]:
-      print(f'BMC Networks:')
-      for x in nodes[n]["bmc"]:
-        print(f'    {x}')
+# User input logic -- exiting if input is invalid or prompting for help
+if len(sys.argv) > 1:
+  if sys.argv[1] in {"-h", "--help"}:
+    print("HELP MANUAL")
+    exit(0)
+  if sys.argv[1] not in {"-s", "--subnet"}:
+    exit("Usage: python3 main.py -s [HOST]")
+  else:
+    if len(sys.argv) == 2:
+      exit("Please specify host address.")
 
-    print(f'Data Networks:')
-    for x in nodes[n]["primary"]:
-      print(f'    {x}')
 
+# Scraping information from node files and finding subnet mask and host addresses
+s = time.time()
 
 nodes = get_nodes()
 sites = get_subnets()
@@ -52,25 +55,28 @@ for n in nodes:
         net = binary_to_value_ip(net)
         final_sites[msk][net] = final_sites[msk].get(net, []) + [adr]
 
-    
 # how are we losing data?
 # print(len(nodes), count_primary, count_primary_processed)
 # pprint.pprint(final_sites)
 
-for subnet in final_sites:
-  msk_cnt = count_ones_bits(subnet)
 
-  for host in final_sites[subnet]:
-    used, unused = [], []
-    for ip in construct_ip(host, msk_cnt):
-      if ip in final_sites[subnet][host]:
-        used.append(ip)
-      else:
-        unused.append(ip)
+# Displaying all available IPs or just subnet IPs based on what user specified
+if len(sys.argv) > 1:
+  arg_host = sys.argv[2]
 
-    print(f'Available IPs for {host}/{msk_cnt}')
-    for n in unused:
-      print(n)
-    print(f'Used IPs for {host}/{msk_cnt}')
-    for n in used:
-      print(n)
+  for subnet in final_sites:
+    for h in final_sites[subnet]:
+      if h == arg_host:
+        display_unused_ips(final_sites, subnet, arg_host)
+        print(time.ctime() - s)
+        exit(0)
+  
+  # If user specified invalid host address, that issue gets caught after checking all hosts
+  exit("Couldn't find that host address.") 
+
+else:
+  for subnet in final_sites:
+    for host in final_sites[subnet]:
+      display_unused_ips(final_sites, subnet, host)
+
+print(time.time() - s)
