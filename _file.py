@@ -151,8 +151,9 @@ def get_primary_addrs(node: dict) -> list:
 
   ### CENTOS7 ###
   if "network" in node.keys():
-    if "default_gateway" in node["network"]:
-      addrs.append(node["network"]["default_gateway"])
+    # TODO: this causes error, there's no subnet mask
+    # if "default_gateway" in node["network"]:
+    #   addrs.append(node["network"]["default_gateway"])
     if "bridge_static" in node["network"]:
       addrs.append(["br0", node["network"]["bridge_static"]["br0"]["ipaddress"]])
 
