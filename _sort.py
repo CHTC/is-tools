@@ -91,6 +91,20 @@ def count_ones_bits(ip: str) -> int:
 
 
 def construct_ip(host: str, bits: int) -> list:
+  """
+  Constructs all possible addresses given a HOST address and the number of free BITS.
+  
+  Parameters
+  ----------
+  host : str
+
+  bits : int
+
+  Returns
+  -------
+  list
+
+  """
   ips = []
   pre = [bin(int(p))[2:].zfill(8) for p in host.split(".")]
   bin_hst = ''.join(pre)

@@ -180,6 +180,3 @@ def get_primary_addrs(node: dict) -> list:
           pass
   
   return addrs
-
-
-get_nodes()
