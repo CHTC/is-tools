@@ -7,11 +7,6 @@ import yaml
 from collections import defaultdict
 
 XT = "/etc/sysconfig/network-scripts/ifcfg-"
-SKIP = {
-  "spaldingwcic0.chtc.wisc.edu.yaml", # some issue with printing out an ip addr...?
-  "path-ap2001.chtc.wisc.edu.yaml", # there's a '\t' which throws on line125, col11
-  "glidein-cm3000.chtc.wisc.edu.yaml" # has unknown char on line28, col55
-} 
 nodes_mp = {
   "vxlan123": ["0601", "1200"],
   "eth0": ["0600", "0601"],
@@ -94,20 +89,31 @@ def get_nodes() -> dict:
     addresses in string format
   """
   addrs = defaultdict()
+  faults = []
 
   for file in glob.glob("./nodes/*.yaml"):
-    f = file.split("/")[2]
-    if f in SKIP:
-      continue
+    with open(file, "r") as stream:
+      try: 
+        data = yaml.safe_load(stream)
+        f = file.split("/")[2]
+        f = f.split(".")[0]
+        addrs[f] = defaultdict()
+        if "bmc" in data.keys():
+          addrs[f]["bmc"] = get_bmc_addrs(data)
+        addrs[f]["primary"] = get_primary_addrs(data)
 
-    f = f.split(".")[0]
-    data = get_yaml_file(file)
-    addrs[f] = defaultdict()
+      except yaml.YAMLError as exc:
+        faults.append([file, exc])
+        continue
+      except TypeError as exc:
+        faults.append([file, exc])
+        continue
 
-    if "bmc" in data.keys():
-      addrs[f]["bmc"] = get_bmc_addrs(data)
-    addrs[f]["primary"] = get_primary_addrs(data)
-  
+  if faults:
+    print("Found malformed YAML files. List of IP addresses is likely incomplete.")
+    for item in faults:
+      print(f'{item[0]}: {item[1]}')
+    
   return addrs
 
 
@@ -174,3 +180,6 @@ def get_primary_addrs(node: dict) -> list:
           pass
   
   return addrs
+
+
+get_nodes()
