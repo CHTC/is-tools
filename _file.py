@@ -54,7 +54,7 @@ def get_subnets() -> dict:
   """
   subnets = defaultdict(lambda: defaultdict())
 
-  for file in glob.glob("./sites/*.yaml"):
+  for file in glob.glob("./site/*.yaml"):
     data = get_yaml_file(file)
     f = file.split("/")[2].split(".")[0]
   
@@ -96,7 +96,7 @@ def get_nodes() -> dict:
   addrs = defaultdict()
   faults = []
 
-  for file in glob.glob("./nodes/*.yaml"):
+  for file in glob.glob("./node/*.yaml"):
     with open(file, "r") as stream:
       try: 
         data = yaml.safe_load(stream)

@@ -22,7 +22,7 @@ def display_unused_ips(
   nodes: dict, 
   subnet: str, 
   host: str, 
-  misc_addrs: list,
+  misc_addrs: set = set(),
   display_used: bool = False, 
   first: bool = False,
   count_used = False
