@@ -92,7 +92,7 @@ def count_ones_bits(ip: str) -> int:
 
 def construct_ip(host: str, bits: int) -> list:
   """
-  Constructs all valid ip addresses from the HOST address with BITS variable bits.
+  Constructs all valid ip addresses from the HOST address with the number of free BITS.
 
   Parameters
   ----------

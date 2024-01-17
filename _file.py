@@ -52,12 +52,11 @@ def get_subnets() -> dict:
   dict
     dictionary mapping each file in "sites" to corresponding subnet masks for each connection type 
   """
-  subnets = defaultdict()
+  subnets = defaultdict(lambda: defaultdict())
 
-  for file in glob.glob("./sites/*.yaml"):
+  for file in glob.glob("./site/*.yaml"):
     data = get_yaml_file(file)
     f = file.split("/")[2].split(".")[0]
-    subnets[f] = defaultdict()
   
     for t in ["eth0", "bond0", "br0"]: # the other types don't show up or don't have notable info
       mask = ""
@@ -73,7 +72,13 @@ def get_subnets() -> dict:
         pass
 
       if mask:
-        subnets[f][t] = list(mask)[0].split("=")[1]
+        subnets[f]["primary"] = list(mask)[0].split("=")[1]
+        break
+    
+    try:
+      subnets[f]["bmc"] = data["bmc"]["lan"]["subnet_mask"]
+    except KeyError:
+      pass
 
   return subnets
 
@@ -91,13 +96,12 @@ def get_nodes() -> dict:
   addrs = defaultdict()
   faults = []
 
-  for file in glob.glob("./nodes/*.yaml"):
+  for file in glob.glob("./node/*.yaml"):
     with open(file, "r") as stream:
       try: 
         data = yaml.safe_load(stream)
         f = file.split("/")[2].split(".")[0]
         addrs[f] = defaultdict()
-
         if "bmc" in data.keys():
           addrs[f]["bmc"] = get_bmc_addrs(data)
         addrs[f]["primary"] = get_primary_addrs(data)
@@ -158,10 +162,14 @@ def get_primary_addrs(node: dict) -> list:
   ### CENTOS7 ###
   if "network" in node.keys():
     # TODO: this causes error, there's no subnet mask
-    # if "default_gateway" in node["network"]:
-    #   addrs.append(node["network"]["default_gateway"])
+    if "default_gateway" in node["network"]:
+      # print(node["network"]["default_gateway"])
+      addrs.append(node["network"]["default_gateway"])
     if "bridge_static" in node["network"]:
-      addrs.append(["br0", node["network"]["bridge_static"]["br0"]["ipaddress"]])
+      addrs.append(node["network"]["bridge_static"]["br0"]["ipaddress"])
+      if "gateway" in node["network"]["bridge_static"]["br0"] and node["network"]["bridge_static"]["br0"]["gateway"]:
+        addrs.append(node["network"]["bridge_static"]["br0"]["gateway"])
+    
 
   ### CENTOS8 ###    
   elif "file" in node.keys():
@@ -172,14 +180,11 @@ def get_primary_addrs(node: dict) -> list:
         try:
           if (ip := node["file"][f'{XT}{k}']["content"][v]) != False:
             if v == "1200" and k == "vxlan123":
-              addrs.append([k, list(ip.keys())[1].split("=")[1]])
+              addrs.append(list(ip.keys())[1].split("=")[1])
             else:
-              addrs.append([k, list(ip.keys())[0].split("=")[1]])
+              addrs.append(list(ip.keys())[0].split("=")[1])
 
         except KeyError:
           pass
   
   return addrs
-
-
-get_nodes()
