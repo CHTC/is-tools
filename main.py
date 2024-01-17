@@ -81,4 +81,3 @@ for subnet in final_sites:
         exit(0)
       
       display_unused_ips(final_sites, subnet, host, count_used=True)
-

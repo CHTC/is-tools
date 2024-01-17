@@ -92,24 +92,26 @@ def count_ones_bits(ip: str) -> int:
 
 def construct_ip(host: str, bits: int) -> list:
   """
-  Constructs all possible addresses given a HOST address and the number of free BITS.
-  
+  Constructs all valid ip addresses from the HOST address with the number of free BITS.
+
   Parameters
   ----------
   host : str
-
+    string representation of integer-based address
   bits : int
+    integer representing how many bits are available to be changed
 
   Returns
   -------
   list
-
+    list of all possible ips
   """
   ips = []
   pre = [bin(int(p))[2:].zfill(8) for p in host.split(".")]
-  bin_hst = ''.join(pre)
+  bin_hst = ''.join(pre)[:bits] # binary prefix of address based on host
 
-  for n in range(2 ** (32 - bits)):
-    x = f'{bin_hst[:bits]}{bin(n)[2:].zfill(32 - bits)}'
+  # cycle through every possible bit combination and append to prefix
+  for n in range(2 ** (32 - bits)): 
+    x = f'{bin_hst}{bin(n)[2:].zfill(32 - bits)}'
     ips.append(binary_to_value_ip(x))
   return ips
