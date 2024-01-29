@@ -9,11 +9,13 @@ from collections import defaultdict
 XT = "/etc/sysconfig/network-scripts/ifcfg-"
 nodes_mp = {
   "vxlan123": ["0601", "1200"],
-  "eth0": ["0600", "0601"],
+  "eth0": ["0600", "0601", "0604", "0605", "171"],
   "eth1": ["0600", "0601"],
-  "bond0": ["0601"],
-  "ib0": ["0602"],
-  "br0": ["0601"]
+  "eth2": ["0600", "0601"],
+  "bond0": ["0601", "110"],
+  "ib0": ["0602", "0600"],
+  "br0": ["0601"],
+  "bond0.5": ["110", "050"]
 }
 
 
@@ -172,17 +174,17 @@ def get_primary_addrs(node: dict) -> list:
     
 
   ### CENTOS8 ###    
-  elif "file" in node.keys():
+  if "file" in node.keys():
     for k, vs in nodes_mp.items():
       for v in vs:
         # using a try-except instead of nested ifs to check if the specific yaml field containing
         # the IP address exists in the current file
         try:
-          if (ip := node["file"][f'{XT}{k}']["content"][v]) != False:
-            if v == "1200" and k == "vxlan123":
-              addrs.append(list(ip.keys())[1].split("=")[1])
-            else:
-              addrs.append(list(ip.keys())[0].split("=")[1])
+          if (ips := node["file"][f'{XT}{k}']["content"][v]) != False:
+            for ip in ips:
+              val = ip.split("=")[1]
+              if val != "overwriteme":
+                addrs.append(val)
 
         except KeyError:
           pass

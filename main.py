@@ -38,10 +38,10 @@ for n in nodes:
   # These are files that don't have symlinks
   if "map" in nodes[n]:
     msk = subnets[nodes[n]["map"]]
-    
+
     # Check if primary addresses and mask exists
     if "primary" in msk.keys() and "primary" in nodes[n]:
-      for adr in nodes[n]["primary"]:
+      for adr in nodes[n]["primary"]:        
         net, _ = get_addresses_from_subnet_mask(adr, msk["primary"])
         net = binary_to_value_ip(net)
         mask_map[msk["primary"]][net].add(adr)
