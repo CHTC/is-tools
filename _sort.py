@@ -19,15 +19,18 @@ def get_addresses_from_subnet_mask(addr: str, mask: str) -> tuple:
   tuple
     tuple in the form of (network, host) addresses after applying subnet mask
   """
+  # Getting individual numerical components of the address and mask 
   _addr = list(map(int, addr.split(".")))
   _mask = list(map(int, mask.split(".")))
   pos = []
   neg = []
   
   for i in range(4):
+    # Binary equivalent of the component
     ba = bin(_addr[i])[2:].zfill(8)
     bm = bin(_mask[i])[2:].zfill(8)
 
+    # Masking procedure
     for j in range(min(len(ba), len(bm))):
       if bm[j] == "1":
         pos.append(ba[j])
@@ -58,10 +61,12 @@ def binary_to_value_ip(ip: str) -> str:
   """
   res = []
   if "." in ip:
+    # Splitting into each component
     for v in ip.split("."):
       res.append(str(int(v, 2)))
       res.append(".")
   else:
+    # Calculating the start and end indices of the 4 sections of the address
     for v in range(4):
       res.append(str(int(ip[v*8:(v+1)*8], 2)))
       res.append(".")

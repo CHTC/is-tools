@@ -20,6 +20,7 @@ parser.add_argument('-f', '--first',
 nodes = get_nodes()
 subnets = get_subnets()
 mask_map = defaultdict(lambda: defaultdict(set))
+used_ips_total = set()
 
 # Finding which subnet mask to use based on the symlink that each node file points to
 for file in glob.glob("./site_tier_0/*.yaml"):
@@ -29,7 +30,7 @@ for file in glob.glob("./site_tier_0/*.yaml"):
   except:
     # Skip files that are in the site_tier_0 directory but aren't in the nodes dictionary
     # These are usually files that had some kind of formatting error and weren't parsed correctly
-    print(file.split("/")[2].split(".")[0])
+    # print(file.split("/")[2].split(".")[0])
     continue
   
 # Calculating host and network addresses using assigned subnet masks
@@ -45,6 +46,7 @@ for n in nodes:
         net, _ = get_addresses_from_subnet_mask(adr, msk["primary"])
         net = binary_to_value_ip(net)
         mask_map[msk["primary"]][net].add(adr)
+        used_ips_total.add(adr)
 
     # Check if bmc addresses and mask exists
     # All bmc addresses under one node will have the same network address
@@ -53,8 +55,11 @@ for n in nodes:
       net = binary_to_value_ip(net)
       for adr in nodes[n]["bmc"]:
         mask_map[msk["bmc"]][net].add(adr)
+        used_ips_total.add(adr)
+
   else:
-    print(n)
+    # print(n)
+    continue
 
 
 # Formatting output based on user arguments
@@ -69,22 +74,21 @@ if args.subnet:
       if network == usr_network:
         # Only display first available address
         if args.first:
-          display_unused_ips(mask_map, subnet, usr_network, showfirst=True)
+          display_unused_ips(used_ips_total, subnet, usr_network, first=True)
           exit(0)
 
         # Otherwise display all available addresses in that network
-        display_unused_ips(mask_map, subnet, usr_network)
+        display_unused_ips(used_ips_total, subnet, usr_network)
         exit(0)
   
   # If user specified invalid network address, that issue gets caught after checking all networks
   exit("Couldn't find that host address.") 
 
-# Look at all available addresses
 for subnet in mask_map:
     for network in mask_map[subnet]:
       # Only display first available address
       if args.first:
-        display_unused_ips(mask_map, subnet, network, first=True)
+        display_unused_ips(used_ips_total, subnet, network, first=True)
         exit(0)
       
-      display_unused_ips(mask_map, subnet, network)
+      display_unused_ips(used_ips_total, subnet, network)

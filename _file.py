@@ -6,7 +6,7 @@ import glob
 import yaml
 from collections import defaultdict
 
-XT = "/etc/sysconfig/network-scripts/ifcfg-"
+# Where to look for IP addresses in the YAML files
 nodes_mp = {
   "vxlan123": ["0601", "1200"],
   "eth0": ["0600", "0601", "0604", "0605", "171"],
@@ -17,6 +17,7 @@ nodes_mp = {
   "br0": ["0601"],
   "bond0.5": ["110", "050"]
 }
+XT = "/etc/sysconfig/network-scripts/ifcfg-"
 
 
 def get_yaml_file(filepath: str) -> dict:
@@ -47,19 +48,21 @@ def get_yaml_file(filepath: str) -> dict:
 
 def get_subnets() -> dict:
   """
-  Scrapes subnet masks from each file in the "sites" directory.
+  Scrapes subnet masks from each file in the "site" directory.
 
   Returns
   -------
   dict
-    dictionary mapping each file in "sites" to corresponding subnet masks for each connection type 
+    dictionary mapping each file to corresponding subnet masks for each connection type 
   """
   subnets = defaultdict(lambda: defaultdict())
 
+  # Opens only YAML files in "site"
   for file in glob.glob("./site/*.yaml"):
     data = get_yaml_file(file)
     f = file.split("/")[2].split(".")[0]
   
+    # Getting primary subnet masks
     for t in ["eth0", "bond0", "br0"]: # the other types don't show up or don't have notable info
       mask = ""
 
@@ -77,6 +80,7 @@ def get_subnets() -> dict:
         subnets[f]["primary"] = list(mask)[0].split("=")[1]
         break
     
+    # Getting BMC subnet masks
     try:
       subnets[f]["bmc"] = data["bmc"]["lan"]["subnet_mask"]
     except KeyError:
@@ -87,7 +91,7 @@ def get_subnets() -> dict:
 
 def get_nodes() -> dict:
   """
-  Scrapes primary and BMC NIC IP address information from each file in the "nodes" directory.
+  Scrapes primary and BMC NIC IP address information from each file in the "node" directory.
 
   Returns
   -------
@@ -98,16 +102,20 @@ def get_nodes() -> dict:
   addrs = defaultdict()
   faults = []
 
+  # Opens only YAML files in "node"
   for file in glob.glob("./node/*.yaml"):
     with open(file, "r") as stream:
       try: 
         data = yaml.safe_load(stream)
         f = file.split("/")[2].split(".")[0]
         addrs[f] = defaultdict()
+
+        # Getting BMC and primary addresses from this file
         if "bmc" in data.keys():
           addrs[f]["bmc"] = get_bmc_addrs(data)
         addrs[f]["primary"] = get_primary_addrs(data)
 
+      # Catching errors with reading the YAML files and file formatting
       except yaml.YAMLError as exc:
         faults.append([file, exc])
         continue
@@ -115,6 +123,7 @@ def get_nodes() -> dict:
         faults.append([file, exc])
         continue
 
+  # Prints errors to user if any were found
   if faults:
     print("Found malformed YAML files. List of IP addresses is likely incomplete.")
     for item in faults:
@@ -163,10 +172,9 @@ def get_primary_addrs(node: dict) -> list:
 
   ### CENTOS7 ###
   if "network" in node.keys():
-    # TODO: this causes error, there's no subnet mask
     if "default_gateway" in node["network"]:
-      # print(node["network"]["default_gateway"])
       addrs.append(node["network"]["default_gateway"])
+    
     if "bridge_static" in node["network"]:
       addrs.append(node["network"]["bridge_static"]["br0"]["ipaddress"])
       if "gateway" in node["network"]["bridge_static"]["br0"] and node["network"]["bridge_static"]["br0"]["gateway"]:
