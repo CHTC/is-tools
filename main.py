@@ -6,6 +6,9 @@ import os
 
 # User input logic -- exiting if input is invalid or prompting for help
 parser = argparse.ArgumentParser(description='Find available IP addresses.')
+parser.add_argument('path',
+  help='specify the location of where the puppet_data directory is located'
+)
 parser.add_argument('-s', '--subnet',
   nargs='*',
   help='specify a subnet to find an available ip address in'
@@ -15,18 +18,24 @@ parser.add_argument('-f', '--first',
   help='gets the first available ip address (use -fs to find first available address in specified subnet)'
 )
 
+# Getting user arguments
+args = parser.parse_args()
 
 # Scraping information from node and site directories for subnet masks and host addresses
-nodes = get_nodes()
-subnets = get_subnets()
+nodes = get_nodes(args.path)
+subnets = get_subnets(args.path)
 mask_map = defaultdict(lambda: defaultdict(set))
 used_ips_total = set()
 
 # Finding which subnet mask to use based on the symlink that each node file points to
-for file in glob.glob("../site_tier_0/*.yaml"):
+for file in glob.glob(f"{args.path}/site_tier_0/*.yaml"):
   try:
     # Set the file's "map" property to the stripped symlink
-    nodes[file.split("/")[2].split(".")[0]]["map"] = os.readlink(file).split("/")[2].split(".")[0]
+    # The key value is the name of the file, stripped of .chtc.wisc.edu
+    # The value is the name of the location that the symlink points to
+    key = file.split("/")[-1].split(".")[0]
+    value = os.readlink(file).split("/")[2].split(".")[0]
+    nodes[key]["map"] = value
   except:
     # Skip files that are in the site_tier_0 directory but aren't in the nodes dictionary
     # These are usually files that had some kind of formatting error and weren't parsed correctly
@@ -61,9 +70,6 @@ for n in nodes:
     # print(n)
     continue
 
-
-# Formatting output based on user arguments
-args = parser.parse_args()
 
 # If a subnet was specified
 if args.subnet:

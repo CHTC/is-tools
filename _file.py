@@ -46,7 +46,7 @@ def get_yaml_file(filepath: str) -> dict:
       exit(f'An error occured in: {filepath}\n{exc}')
 
 
-def get_subnets() -> dict:
+def get_subnets(data_directory: str) -> dict:
   """
   Scrapes subnet masks from each file in the "site" directory.
 
@@ -58,9 +58,9 @@ def get_subnets() -> dict:
   subnets = defaultdict(lambda: defaultdict())
 
   # Opens only YAML files in "site"
-  for file in glob.glob("../site/*.yaml"):
+  for file in glob.glob(f"{data_directory}/site/*.yaml"):
     data = get_yaml_file(file)
-    f = file.split("/")[2].split(".")[0]
+    f = file.split("/")[-1].split(".")[0]
   
     # Getting primary subnet masks
     for t in ["eth0", "bond0", "br0"]: # the other types don't show up or don't have notable info
@@ -89,7 +89,7 @@ def get_subnets() -> dict:
   return subnets
 
 
-def get_nodes() -> dict:
+def get_nodes(data_directory: str) -> dict:
   """
   Scrapes primary and BMC NIC IP address information from each file in the "node" directory.
 
@@ -103,11 +103,11 @@ def get_nodes() -> dict:
   faults = []
 
   # Opens only YAML files in "node"
-  for file in glob.glob("../node/*.yaml"):
+  for file in glob.glob(f"{data_directory}/node/*.yaml"):
     with open(file, "r") as stream:
       try: 
         data = yaml.safe_load(stream)
-        f = file.split("/")[2].split(".")[0]
+        f = file.split("/")[-1].split(".")[0]
         addrs[f] = defaultdict()
 
         # Getting BMC and primary addresses from this file
