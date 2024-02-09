@@ -23,7 +23,7 @@ mask_map = defaultdict(lambda: defaultdict(set))
 used_ips_total = set()
 
 # Finding which subnet mask to use based on the symlink that each node file points to
-for file in glob.glob("./site_tier_0/*.yaml"):
+for file in glob.glob("../site_tier_0/*.yaml"):
   try:
     # Set the file's "map" property to the stripped symlink
     nodes[file.split("/")[2].split(".")[0]]["map"] = os.readlink(file).split("/")[2].split(".")[0]

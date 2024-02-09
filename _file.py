@@ -58,7 +58,7 @@ def get_subnets() -> dict:
   subnets = defaultdict(lambda: defaultdict())
 
   # Opens only YAML files in "site"
-  for file in glob.glob("./site/*.yaml"):
+  for file in glob.glob("../site/*.yaml"):
     data = get_yaml_file(file)
     f = file.split("/")[2].split(".")[0]
   
@@ -103,7 +103,7 @@ def get_nodes() -> dict:
   faults = []
 
   # Opens only YAML files in "node"
-  for file in glob.glob("./node/*.yaml"):
+  for file in glob.glob("../node/*.yaml"):
     with open(file, "r") as stream:
       try: 
         data = yaml.safe_load(stream)
@@ -146,12 +146,23 @@ def get_bmc_addrs(node: dict) -> list:
   list
     list of strings representing IP addresses
   """
+  def_gate = False
+  ip_addr = False
+
   if "default_gateway_ip" in node["bmc"]["lan"].keys():
+    def_gate = True
+  if "ip_address" in node["bmc"]["lan"].keys():
+    ip_addr = True
+  
+  if def_gate and ip_addr:
     return [
       node["bmc"]["lan"]["ip_address"], 
       node["bmc"]["lan"]["default_gateway_ip"]
     ]
-  return [node["bmc"]["lan"]["ip_address"]]
+  if def_gate:
+    return [node["bmc"]["lan"]["default_gateway_ip"]]
+  if ip_addr:
+    return [node["bmc"]["lan"]["ip_address"]]
 
 
 def get_primary_addrs(node: dict) -> list:
