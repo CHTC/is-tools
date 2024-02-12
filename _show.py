@@ -19,21 +19,24 @@ def print_nodes(nodes: dict):
 
 
 def display_unused_ips(
-  nodes: dict, 
+  nodes: set, 
   subnet: str, 
   host: str, 
-  misc_addrs: set = set(),
   display_used: bool = False, 
   first: bool = False,
-  count_used = False
 ):
   msk_cnt = count_ones_bits(subnet)
   used, unused = [], []
   for ip in construct_ip(host, msk_cnt):
-    if ip in nodes[subnet][host] or ip in misc_addrs:
+    if ip in nodes:
       used.append(ip)
     else:
       unused.append(ip)
+
+  if display_used:
+    print(f'Used IPs for {host}/{msk_cnt}')
+    for n in used:
+      print(n)
 
   print(f'Available IPs for {host}/{msk_cnt}')
   for n in unused:
@@ -41,10 +44,3 @@ def display_unused_ips(
     if first:
       return
   
-  if count_used:
-    return (len(used))
-
-  if display_used:
-    print(f'Used IPs for {host}/{msk_cnt}')
-    for n in used:
-      print(n)
