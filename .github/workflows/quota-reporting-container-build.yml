@@ -4,7 +4,7 @@ on:
     push:
     pull_request:
       branches:
-      - master
+      - main
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
 
     - name: Log in to OSG Harbor
       uses: docker/login-action@v3
-      if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+      if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
       with:
         registry: hub.opensciencegrid.org/chtc
         username: ${{ secrets.OSG_HARBOR_CHTC_INF_USER }}
@@ -29,5 +29,5 @@ jobs:
       with:
         context: ./ceph-quota-usage
         file: ./ceph-quota-usage/Dockerfile
-        push: ${{ github.ref  == 'refs/heads/master' &&  github.event_name  == 'pull_request' }}
+        push: ${{ github.ref  == 'refs/heads/main' &&  github.event_name  != 'pull_request' }}
         tags: "chtc-inf/quota_usage_reporting:${{github.sha}}"
