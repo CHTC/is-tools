@@ -20,7 +20,7 @@ jobs:
       uses: docker/login-action@v3
       if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
       with:
-        registry: hub.opensciencegrid.org/chtc
+        registry: hub.opensciencegrid.org/chtc-inf
         username: ${{ secrets.OSG_HARBOR_CHTC_INF_USER }}
         password: ${{ secrets.OSG_HARBOR_CHTC_INF_PASSWORD }}
 
