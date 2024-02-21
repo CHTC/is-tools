@@ -1,0 +1,33 @@
+name: Build and Push Quota Reporting Docker Image
+
+on:
+    push:
+    pull_request:
+      branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to OSG Harbor
+      uses: docker/login-action@v3
+      if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+      with:
+        registry: hub.opensciencegrid.org/chtc
+        username: ${{ secrets.OSG_HARBOR_CHTC_INF_USER }}
+        password: ${{ secrets.OSG_HARBOR_CHTC_INF_PASSWORD }}
+
+    - name: Build and push image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./ceph-quota-usage
+        file: ./ceph-quota-usage/Dockerfile
+        push: ${{ github.ref  == 'refs/heads/master' &&  github.event_name  == 'pull_request' }}
+        tags: "chtc-inf/quota_usage_reporting:${{github.sha}}"
