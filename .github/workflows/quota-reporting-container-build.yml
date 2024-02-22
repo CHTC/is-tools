@@ -30,4 +30,6 @@ jobs:
         context: ./ceph-quota-usage
         file: ./ceph-quota-usage/Dockerfile
         push: ${{ github.ref  == 'refs/heads/main' &&  github.event_name  != 'pull_request' }}
-        tags: "hub.opensciencegrid.org/chtc-inf/quota_usage_reporting:${{github.sha}}"
+        tags: |
+          "hub.opensciencegrid.org/chtc-inf/quota_usage_reporting:latest"
+          "hub.opensciencegrid.org/chtc-inf/quota_usage_reporting:${{github.sha}}"
