@@ -6,6 +6,39 @@ import sys
 import math
 import rados
 import cephfs
+import smtplib
+import argparse
+from email.message import EmailMessage
+
+DEFAULT_REPORT_DIRS = ["/htcstaging/", "/htcstaging/groups/", "/htcstaging/stash/", "/htcprojects/"]
+DEFAULT_REPORT_FILENAME = "quota_usage_report.csv"
+DEFAULT_SENDER_ADDRESS = "wnswanson@wisc.edu"
+DEFAULT_RECEIVER_ADDRESSES = ["wnswanson@wisc.edu"]
+
+
+class Options:
+    report_dirs = None
+    report_file = None
+    sender = None
+    receivers = None
+
+
+options = Options()
+
+
+def parse_args(args):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--directories", nargs="*", default=DEFAULT_REPORT_DIRS)
+    parser.add_argument("-f", "--filename", default=DEFAULT_REPORT_FILENAME)
+    parser.add_argument("-s", "--sender", default=DEFAULT_SENDER_ADDRESS)
+    parser.add_argument("-r", "--receivers", nargs="*", default=DEFAULT_RECEIVER_ADDRESSES)
+    parsed_args = parser.parse_args(args)
+    options.report_dirs = parsed_args.directories
+    options.report_file = parsed_args.filename
+    options.sender = parsed_args.sender
+    options.receivers = parsed_args.receivers
+    print(args)
+    print(f"{parsed_args.directories}\n{parsed_args.filename}\n{parsed_args.sender}\n{parsed_args.receivers}\n")
 
 
 class CephFS_Filesystem:
@@ -85,7 +118,7 @@ class CephFS_Filesystem:
         return sorted(table)
 
 
-def create_report_file(report_dirs):
+def create_report_file(report_dirs, report_file):
     fs = CephFS_Filesystem()
 
     table = [
@@ -113,21 +146,31 @@ def create_report_file(report_dirs):
     nonduplicate_subdir_usages = list(row for row in subdir_quota_usages if row not in toplevel_quota_usages)
     table.extend(nonduplicate_subdir_usages)
 
-    with open("usage_report.csv", "w", newline="") as csvfile:
+    with open(report_file, "w", newline="") as csvfile:
         writer = csv.writer(csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL)
         for row in table:
             writer.writerow(row)
 
-    return 0
+
+def send_email(report_file):
+    with open(report_file) as fp:
+        # Create a text/plain message
+        msg = EmailMessage()
+        msg.set_content(fp.read())
+
+    msg["Subject"] = f"The contents of {report_file}"
+    msg["From"] = options.sender
+    msg["To"] = options.receiver
+
+    s = smtplib.SMTP("postfix-mail", 587)
+    s.send_message(msg)
+    s.quit()
 
 
 def main(args):
-
-    report_dirs = ["/htcstaging/", "/htcstaging/groups/", "/htcstaging/stash/", "/htcprojects/"]
-
-    create_report_file(report_dirs)
-
-    return 0
+    parse_args(args)
+    create_report_file(options.report_dirs, options.report_file)
+    send_email(options.report_file)
 
 
 if __name__ == "__main__":
