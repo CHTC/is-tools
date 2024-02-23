@@ -10,7 +10,13 @@ import smtplib
 import argparse
 from email.message import EmailMessage
 
-DEFAULT_REPORT_DIRS = ["/htcstaging/", "/htcstaging/groups/", "/htcstaging/stash/", "/htcprojects/"]
+DEFAULT_REPORT_DIRS = [
+    "/htcstaging/",
+    "/htcstaging/groups/",
+    "/htcstaging/stash/",
+    "/htcstaging/stash_protected/",
+    "/htcprojects/",
+]
 DEFAULT_REPORT_FILENAME = "quota_usage_report.csv"
 DEFAULT_SENDER_ADDRESS = "wnswanson@wisc.edu"
 DEFAULT_RECEIVER_ADDRESSES = ["wnswanson@wisc.edu"]
@@ -37,12 +43,12 @@ def parse_args(args):
     options.report_file = parsed_args.filename
     options.sender = parsed_args.sender
     options.receivers = parsed_args.receivers
-    print(args)
-    print(f"{parsed_args.directories}\n{parsed_args.filename}\n{parsed_args.sender}\n{parsed_args.receivers}\n")
 
 
-class CephFS_Filesystem:
+# TODO: better class name
+class CephFS_Wrapper:
     DIRENTRY_TYPE = {"DIR": 4, "FILE": 8, "LINK": "A"}
+    NO_DATA_AVAIL_ERROR_NUM = 61
     cluster = None
     fs = None
 
@@ -62,45 +68,51 @@ class CephFS_Filesystem:
         if not self.cluster is None:
             self.cluster.shutdown()
 
-    def get_quota_usage_entry(self, path):
+    def get_quota_usage_entry(self, path, quota_xattr, usage_xattr):
         bytepath = bytes(path.encode())
         try:
-            quota_bytes = int(self.fs.getxattr(bytepath, "ceph.quota.max_bytes"))
-            current_bytes = int(self.fs.getxattr(bytepath, "ceph.dir.rbytes"))
-            current_gibibytes = round((current_bytes / math.pow(1024, 3)), 2)
-
-            if quota_bytes > 0:
-                quota_gibibytes = round((quota_bytes / math.pow(1024, 3)), 2)
-                percent_bytes_used = round(((current_bytes / quota_bytes) * 100), 2)
+            quota_val = int(self.fs.getxattr(bytepath, quota_xattr))
+            usage_val = int(self.fs.getxattr(bytepath, usage_xattr))
+            if quota_val and quota_val > 0:
+                usage_percent = round(((usage_val / quota_val) * 100), 2)
             else:
-                quota_gibibytes = "-"
-                percent_bytes_used = "-"
-
-            quota_files = int(self.fs.getxattr(bytepath, "ceph.quota.max_files"))
-            current_files = int(self.fs.getxattr(bytepath, "ceph.dir.rfiles"))
-
-            if quota_files > 0:
-                percent_files_used = round(((current_files / quota_files) * 100), 2)
-            else:
-                quota_files = "-"
-                percent_files_used = "-"
-
-            return (
-                path,
-                quota_gibibytes,
-                current_gibibytes,
-                percent_bytes_used,
-                quota_files,
-                current_files,
-                percent_files_used,
-            )
+                quota_val = "-"
+                usage_percent = "-"
+            return [quota_val, usage_val, usage_percent]
         except Exception as e:
-            print(f"Error on path {path}\n\tError : {e}\n")
+            # Error code for "No xattr data for this path"
+            if e.args[0] != self.NO_DATA_AVAIL_ERROR_NUM:
+                # Real Error, log it
+                print(f"Error on path {path}\n\tError : {e}\n")
+            return None
 
-    def get_quota_usage_metadir(self, path):
+    def bytes_to_gibibytes(byte_count):
+        return round((byte_count / math.pow(1024, 3)), 2)
+
+    def get_report_entry(self, path):
+        row = [path]
+
+        bytes_entry = self.get_quota_usage_entry(path, "ceph.quota.max_bytes", "ceph.dir.rbytes")
+        files_entry = self.get_quota_usage_entry(path, "ceph.quota.max_files", "ceph.dir.rfiles")
+
+        # Gibibyte conversion for byte quota and usage
+        if bytes_entry:
+            if bytes_entry[0] != "-":
+                bytes_entry[0] = CephFS_Wrapper.bytes_to_gibibytes(int(bytes_entry[0]))
+            if bytes_entry[1] != "-":
+                bytes_entry[1] = CephFS_Wrapper.bytes_to_gibibytes(int(bytes_entry[1]))
+
+        if not None in (bytes_entry, files_entry):
+            row.extend(bytes_entry)
+            row.extend(files_entry)
+            return row
+        else:
+            return None
+
+    def get_report_entries_dir(self, path):
         dr = self.fs.opendir(bytes(path.encode()))
 
-        table = list()
+        entries = list()
 
         dir_entry = self.fs.readdir(dr)
 
@@ -108,19 +120,18 @@ class CephFS_Filesystem:
             subdir_name = bytes(dir_entry.d_name).decode()
             if dir_entry.d_type == self.DIRENTRY_TYPE["DIR"] and b"." not in dir_entry.d_name:
                 subdir_path = os.path.join(path, subdir_name, "")
-                row = self.get_quota_usage_entry(subdir_path)
+                row = self.get_report_entry(subdir_path)
                 if row:
-                    table.append(tuple(row))
+                    entries.append(tuple(row))
 
             dir_entry = self.fs.readdir(dr)
 
         self.fs.closedir(dr)
-        return sorted(table)
+        return sorted(entries)
 
 
 def create_report_file(report_dirs, report_file):
-    fs = CephFS_Filesystem()
-
+    fs = CephFS_Wrapper()
     table = [
         (
             "Path",
@@ -136,10 +147,10 @@ def create_report_file(report_dirs, report_file):
     toplevel_quota_usages = []
     subdir_quota_usages = []
     for path in report_dirs:
-        toplevel_entry = fs.get_quota_usage_entry(path)
+        toplevel_entry = fs.get_report_entry(path)
         if toplevel_entry:
             toplevel_quota_usages.append(toplevel_entry)
-        subdir_quota_usages.extend(fs.get_quota_usage_metadir(path))
+        subdir_quota_usages.extend(fs.get_report_entries_dir(path))
 
     table.extend(toplevel_quota_usages)
 
@@ -160,7 +171,7 @@ def send_email(report_file):
 
     msg["Subject"] = f"The contents of {report_file}"
     msg["From"] = options.sender
-    msg["To"] = options.receiver
+    msg["To"] = options.receivers
 
     s = smtplib.SMTP("postfix-mail", 587)
     s.send_message(msg)
