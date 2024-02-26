@@ -1,6 +1,7 @@
 FROM quay.io/ceph/ceph:v16.2.14
 
 ADD ./cephfs_quota_usage.py /home/
+ADD ./email_formatter.py /home/
 ADD ./rpms /home/rpms
 
 RUN <<EOF

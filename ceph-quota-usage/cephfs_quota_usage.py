@@ -9,6 +9,7 @@ import cephfs
 import smtplib
 import argparse
 from email.message import EmailMessage
+from email_formatter import BaseFormatter
 
 DEFAULT_REPORT_DIRS = [
     "/htcstaging/",
@@ -130,7 +131,7 @@ class CephFS_Wrapper:
         return sorted(entries)
 
 
-def create_report_file(report_dirs, report_file):
+def create_report_file():
     fs = CephFS_Wrapper()
     table = [
         (
@@ -146,7 +147,7 @@ def create_report_file(report_dirs, report_file):
 
     toplevel_quota_usages = []
     subdir_quota_usages = []
-    for path in report_dirs:
+    for path in options.report_dirs:
         toplevel_entry = fs.get_report_entry(path)
         if toplevel_entry:
             toplevel_quota_usages.append(toplevel_entry)
@@ -157,19 +158,18 @@ def create_report_file(report_dirs, report_file):
     nonduplicate_subdir_usages = list(row for row in subdir_quota_usages if row not in toplevel_quota_usages)
     table.extend(nonduplicate_subdir_usages)
 
-    with open(report_file, "w", newline="") as csvfile:
+    with open(options.report_file, "w", newline="") as csvfile:
         writer = csv.writer(csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL)
         for row in table:
             writer.writerow(row)
 
 
-def send_email(report_file):
-    with open(report_file) as fp:
-        # Create a text/plain message
-        msg = EmailMessage()
-        msg.set_content(fp.read())
+def send_email():
+    msg = EmailMessage()
+    formatter = BaseFormatter(table_files=[options.report_file])
+    msg.set_content(formatter.get_html())
 
-    msg["Subject"] = f"The contents of {report_file}"
+    msg["Subject"] = f"The contents of {options.report_file}"
     msg["From"] = options.sender
     msg["To"] = options.receivers
 
@@ -180,8 +180,8 @@ def send_email(report_file):
 
 def main(args):
     parse_args(args)
-    create_report_file(options.report_dirs, options.report_file)
-    send_email(options.report_file)
+    create_report_file()
+    send_email()
 
 
 if __name__ == "__main__":
