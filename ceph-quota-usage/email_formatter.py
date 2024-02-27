@@ -28,16 +28,19 @@ DEFAULT_COL_FORMATS    = {
 }
 
 DEFAULT_STYLES = {
-    "body": ["font-size: 11pt", "font-family: sans-serif"],
+    "body": [
+        "font-size: 11pt",
+        "font-family: sans-serif"
+        ],
     "h1": [
         "font-size: 12pt",
         "text-align: center",
-    ],
+        ],
     "table": [
         "font-size: 10pt",
         "border-collapse: collapse",
         "border-color: #ffffff",
-    ],
+        ],
     "tr.odd": ["background-color: #fee"],
     "tr.even": ["background-color: #fff"],
     "th": [
@@ -46,12 +49,12 @@ DEFAULT_STYLES = {
         "text-align: center",
         "background-color: #ddd",
         "min-width: 1px",
-    ],
+        ],
     "td": [
         "border: 1px solid black",
         "text-align: left",
         "min-width: 1px",
-    ],
+        ],
     "td.text": ["text-align: left"],
     "td.numeric": ["text-align: right"],
     "td.other": ["text-align: right"],
@@ -81,7 +84,7 @@ class BaseFormatter:
         if len(cols) == 0:
             return
         idxs = []
-        for i in range(len(data["header"]) - 1, -1, -1):
+        for i in range(len(data["header"])-1, -1, -1):
             if data["header"][i] in cols:
                 idxs.append(i)
                 data["header"].pop(i)
@@ -89,7 +92,13 @@ class BaseFormatter:
             for i in idxs:
                 row.pop(i)
 
-    def format_rows(self, header, rows, custom_fmts={}, default_text_fmt=None, default_numeric_fmt=None):
+    def format_rows(self,
+                    header,
+                    rows,
+                    custom_fmts={},
+                    default_text_fmt=None,
+                    default_numeric_fmt=None
+                        ):
         fmts = DEFAULT_COL_FORMATS.copy()
         fmts.update(custom_fmts)
         if default_text_fmt is None:
@@ -105,7 +114,7 @@ class BaseFormatter:
                 # First column (blank header) contains row number
                 # except total row contains total number of rows
                 if col == "" and i == 0:
-                    rows[i][j] = default_numeric_fmt(len(rows) - 1)
+                    rows[i][j] = default_numeric_fmt(len(rows)-1)
                     continue
                 elif col == "" and value == "":
                     rows[i][j] = default_numeric_fmt(float(i))

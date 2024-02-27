@@ -20,7 +20,7 @@ DEFAULT_REPORT_DIRS = [
     "HTC:/htcstaging/stash_protected/",
     "HTC:/htcprojects/",
 ]
-DEFAULT_REPORT_FILENAME = "quota_usage_report.csv"
+DEFAULT_REPORT_FILENAME = "Quota_Usage_Report.csv"
 DEFAULT_SENDER_ADDRESS = "wnswanson@wisc.edu"
 DEFAULT_RECEIVER_ADDRESSES = ["wnswanson@wisc.edu"]
 DEFAULT_CLUSTERS = ["HTC:INF-896"]
