@@ -100,6 +100,18 @@ class CephFS_Wrapper:
         if not self.cluster is None:
             self.cluster.shutdown()
 
+    def get_xattr(self, path, xattr):
+        bytepath = bytes(path.encode())
+        try:
+            value = self.fs.getxattr(bytepath, xattr).decode()
+            return value
+        except Exception as e:
+            # Error code for "No xattr data for this path"
+            if e.args[0] != self.NO_DATA_AVAIL_ERROR_NUM:
+                # Real Error, log it
+                print(f"Error on path {path}\n\tError : {e}\n")
+            return ""
+
     def get_quota_usage_entry(self, path, quota_xattr, usage_xattr):
         bytepath = bytes(path.encode())
         try:
@@ -126,6 +138,7 @@ class CephFS_Wrapper:
 
         bytes_entry = self.get_quota_usage_entry(path, "ceph.quota.max_bytes", "ceph.dir.rbytes")
         files_entry = self.get_quota_usage_entry(path, "ceph.quota.max_files", "ceph.dir.rfiles")
+        backing_pool = self.get_xattr(path, "ceph.dir.layout.pool")
 
         # Gibibyte conversion for byte quota and usage
         if bytes_entry:
@@ -134,9 +147,10 @@ class CephFS_Wrapper:
             if bytes_entry[1] != "-":
                 bytes_entry[1] = CephFS_Wrapper.bytes_to_gibibytes(int(bytes_entry[1]))
 
-        if not None in (bytes_entry, files_entry):
+        if not None in (bytes_entry, files_entry, backing_pool):
             row.extend(bytes_entry)
             row.extend(files_entry)
+            row.append(backing_pool)
             return row
         else:
             return None
@@ -172,6 +186,7 @@ def create_report_file(cluster):
             "File Count Quota",
             "File Count Usage",
             "File Count Usage (%)",
+            "Backing Pool",
         )
     ]
 
