@@ -1,8 +1,4 @@
 import csv
-from collections import OrderedDict, defaultdict
-from datetime import datetime, timedelta
-from pathlib import Path
-
 #
 # This code was mostly shamelessly taken and repurposed from Jason Patton's JobAccounting reporting scripts.
 #
@@ -19,29 +15,32 @@ def break_chars(s):
     return s
 
 
-DEFAULT_TEXT_FORMAT = lambda x: f'<td class="text">{break_chars(x)}</td>'
-DEFAULT_NUMERIC_FORMAT = lambda x: f"<td>{int(x):,}</td>"
-DEFAULT_COL_FORMATS = {
-    "Path": lambda x: f"<td>{str(x)}</td>",
-    "Byte Quota (Gibibytes)": lambda x: f"<td>{float(x):.2f}</td>",
-    "Byte Usage (Gibibytes)": lambda x: f"<td>{float(x):.2f}</td>",
-    "Percent Bytes Used (%)": lambda x: f"<td>{float(x):.2f}</td>",
-    "File Count Quota": lambda x: f"<td>{int(x)}</td>",
-    "File Count Usage": lambda x: f"<td>{int(x)}</td>",
-    "File Count Usage (%)": lambda x: f"<td>{float(x):.2f}</td>",
+DEFAULT_TEXT_FORMAT    = lambda x: f'<td class="other">{break_chars(x)}</td>'
+DEFAULT_NUMERIC_FORMAT = lambda x: f"<td class=\"numeric\">{int(x):,}</td>"
+DEFAULT_COL_FORMATS    = {
+    "Path" : lambda x: f"<td class=\"text\">{str(x)}</td>",
+    "Byte Quota (Gibibytes)" : lambda x: f"<td class=\"numeric\">{float(x):.2f}</td>",
+    "Byte Usage (Gibibytes)" : lambda x: f"<td class=\"numeric\">{float(x):.2f}</td>",
+    "Percent Bytes Used (%)" : lambda x: f"<td class=\"numeric\">{float(x):.2f}</td>",
+    "File Count Quota" : lambda x: f"<td class=\"numeric\">{int(x)}</td>",
+    "File Count Usage" : lambda x: f"<td class=\"numeric\">{int(x)}</td>",
+    "File Count Usage (%)" : lambda x: f"<td class=\"numeric\">{float(x):.2f}</td>",
 }
 
 DEFAULT_STYLES = {
-    "body": ["font-size: 11pt", "font-family: sans-serif"],
+    "body": [
+        "font-size: 11pt",
+        "font-family: sans-serif"
+        ],
     "h1": [
         "font-size: 12pt",
         "text-align: center",
-    ],
+        ],
     "table": [
         "font-size: 10pt",
         "border-collapse: collapse",
         "border-color: #ffffff",
-    ],
+        ],
     "tr.odd": ["background-color: #fee"],
     "tr.even": ["background-color: #fff"],
     "th": [
@@ -50,13 +49,15 @@ DEFAULT_STYLES = {
         "text-align: center",
         "background-color: #ddd",
         "min-width: 1px",
-    ],
+        ],
     "td": [
         "border: 1px solid black",
-        "text-align: right",
+        "text-align: left",
         "min-width: 1px",
-    ],
+        ],
     "td.text": ["text-align: left"],
+    "td.numeric": ["text-align: right"],
+    "td.other": ["text-align: right"],
 }
 
 
@@ -83,7 +84,7 @@ class BaseFormatter:
         if len(cols) == 0:
             return
         idxs = []
-        for i in range(len(data["header"]) - 1, -1, -1):
+        for i in range(len(data["header"])-1, -1, -1):
             if data["header"][i] in cols:
                 idxs.append(i)
                 data["header"].pop(i)
@@ -91,7 +92,13 @@ class BaseFormatter:
             for i in idxs:
                 row.pop(i)
 
-    def format_rows(self, header, rows, custom_fmts={}, default_text_fmt=None, default_numeric_fmt=None):
+    def format_rows(self,
+                    header,
+                    rows,
+                    custom_fmts={},
+                    default_text_fmt=None,
+                    default_numeric_fmt=None
+                        ):
         fmts = DEFAULT_COL_FORMATS.copy()
         fmts.update(custom_fmts)
         if default_text_fmt is None:
@@ -107,7 +114,7 @@ class BaseFormatter:
                 # First column (blank header) contains row number
                 # except total row contains total number of rows
                 if col == "" and i == 0:
-                    rows[i][j] = default_numeric_fmt(len(rows) - 1)
+                    rows[i][j] = default_numeric_fmt(len(rows)-1)
                     continue
                 elif col == "" and value == "":
                     rows[i][j] = default_numeric_fmt(float(i))
@@ -138,6 +145,9 @@ class BaseFormatter:
 
         return rows
 
+    def get_table_title(self, table_file):
+        return str(table_file).strip(".csv").replace("_", " ")
+
     def get_table_html(self, table_file, **kwargs):
         table_data = self.load_table(table_file)
         rows = self.format_rows(table_data["header"], table_data["rows"])
@@ -149,7 +159,7 @@ class BaseFormatter:
 
         newline = "\n  "
         html = f"""
-<h1>{table_file}</h1>
+<h1>{self.get_table_title(table_file)}</h1>
 <table>
   <tr><th>{'</th><th>'.join(table_data['header'])}</th></tr>
   {newline.join(rows_html)}
