@@ -8,6 +8,7 @@ import rados
 import cephfs
 import smtplib
 import argparse
+from email.mime.text import MIMEText
 from email.message import EmailMessage
 from email_formatter import BaseFormatter
 
@@ -167,7 +168,7 @@ def create_report_file():
 def send_email():
     msg = EmailMessage()
     formatter = BaseFormatter(table_files=[options.report_file])
-    msg.set_content(formatter.get_html())
+    msg.set_content(MIMEText(formatter.get_html(), "html"))
 
     msg["Subject"] = f"The contents of {options.report_file}"
     msg["From"] = options.sender
