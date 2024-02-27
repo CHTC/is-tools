@@ -14,15 +14,16 @@ from email.message import EmailMessage
 from email_formatter import BaseFormatter
 
 DEFAULT_REPORT_DIRS = [
-    "/htcstaging/",
-    "/htcstaging/groups/",
-    "/htcstaging/stash/",
-    "/htcstaging/stash_protected/",
-    "/htcprojects/",
+    "HTC:/htcstaging/",
+    "HTC:/htcstaging/groups/",
+    "HTC:/htcstaging/stash/",
+    "HTC:/htcstaging/stash_protected/",
+    "HTC:/htcprojects/",
 ]
 DEFAULT_REPORT_FILENAME = "quota_usage_report.csv"
 DEFAULT_SENDER_ADDRESS = "wnswanson@wisc.edu"
 DEFAULT_RECEIVER_ADDRESSES = ["wnswanson@wisc.edu"]
+DEFAULT_CLUSTERS = ["HTC:INF-896"]
 
 
 class Options:
@@ -30,6 +31,7 @@ class Options:
     report_file = None
     sender = None
     receivers = None
+    cluster_clients = None
 
 
 options = Options()
@@ -41,11 +43,35 @@ def parse_args(args):
     parser.add_argument("-f", "--filename", default=DEFAULT_REPORT_FILENAME)
     parser.add_argument("-s", "--sender", default=DEFAULT_SENDER_ADDRESS)
     parser.add_argument("-r", "--receivers", nargs="*", default=DEFAULT_RECEIVER_ADDRESSES)
+    parser.add_argument("-c", "--clusters", nargs="*", default=DEFAULT_CLUSTERS)
     parsed_args = parser.parse_args(args)
-    options.report_dirs = parsed_args.directories
+    try:
+        # Form a Cluster-Identifier to List-of-Directory-Paths dictionary
+        report_dirs_dict = dict()
+        # For each colon-delineated cluster and directory pair in the parsed directories
+        for directory in parsed_args.directories:
+            # split the pair
+            cluster_path_list = str(directory).split(":")
+            # If the report_dir_dict already does not have an entry for the cluster...
+            if cluster_path_list[0] not in report_dirs_dict:
+                # Add a new entry to the dictionary for this cluster, with a list containing the directory path
+                report_dirs_dict[cluster_path_list[0]] = [cluster_path_list[1]]
+            else:
+                # Append to the existing entry's list
+                report_dirs_dict[cluster_path_list[0]].append(cluster_path_list[1])
+    except Exception as e:
+        print(f"Error creating Cluster-Directory mapping: {e}")
+        raise e
+    options.report_dirs = report_dirs_dict
     options.report_file = parsed_args.filename
     options.sender = parsed_args.sender
     options.receivers = parsed_args.receivers
+    # Create Cluster-Identifier to Client-Name dictionary
+    cluster_clients = dict()
+    for cluster in parsed_args.clusters:
+        cluster_client_split = str(cluster).split(":")
+        cluster_clients[cluster_client_split[0]] = cluster_client_split[1]
+    options.cluster_clients = cluster_clients
 
 
 # TODO: better class name
@@ -55,9 +81,12 @@ class CephFS_Wrapper:
     cluster = None
     fs = None
 
-    def __init__(self):
+    def __init__(self, cluster_identifier, client_name):
         cluster = rados.Rados(
-            name="client.INF-896", clustername="ceph", conffile="ceph.conf", conf=dict(keyring="client.INF-896")
+            name=f"client.{client_name}",
+            clustername="ceph",
+            conffile=f"{cluster_identifier}/ceph.conf",
+            conf=dict(keyring=f"{cluster_identifier}/client.{client_name}"),
         )
         self.cluster = cluster
         fs = cephfs.LibCephFS(rados_inst=self.cluster)
@@ -133,8 +162,7 @@ class CephFS_Wrapper:
         return sorted(entries)
 
 
-def create_report_file():
-    fs = CephFS_Wrapper()
+def create_report_file(cluster):
     table = [
         (
             "Path",
@@ -149,18 +177,19 @@ def create_report_file():
 
     toplevel_quota_usages = []
     subdir_quota_usages = []
-    for path in options.report_dirs:
-        toplevel_entry = fs.get_report_entry(path)
+    cluster_fs = CephFS_Wrapper(cluster, options.cluster_clients[cluster])
+    for path in options.report_dirs[cluster]:
+        toplevel_entry = cluster_fs.get_report_entry(path)
         if toplevel_entry:
             toplevel_quota_usages.append(toplevel_entry)
-        subdir_quota_usages.extend(fs.get_report_entries_dir(path))
+        subdir_quota_usages.extend(cluster_fs.get_report_entries_dir(path))
 
     table.extend(toplevel_quota_usages)
 
     nonduplicate_subdir_usages = list(row for row in subdir_quota_usages if row not in toplevel_quota_usages)
     table.extend(nonduplicate_subdir_usages)
 
-    with open(options.report_file, "w", newline="") as csvfile:
+    with open(f"{cluster}_{options.report_file}", "w", newline="") as csvfile:
         writer = csv.writer(csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL)
         for row in table:
             writer.writerow(row)
@@ -168,7 +197,8 @@ def create_report_file():
 
 def send_email():
     msg = EmailMessage()
-    formatter = BaseFormatter(table_files=[options.report_file])
+    table_filenames = [f"{cluster}_{options.report_file}" for cluster in options.report_dirs]
+    formatter = BaseFormatter(table_files=table_filenames)
     msg.set_content(MIMEText(formatter.get_html(), "html"))
     msg["Subject"] = f"Quota Usage Report for {datetime.date.today()}"
     msg["From"] = options.sender
@@ -181,7 +211,8 @@ def send_email():
 
 def main(args):
     parse_args(args)
-    create_report_file()
+    for cluster in options.report_dirs:
+        create_report_file(cluster)
     send_email()
 
 
