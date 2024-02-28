@@ -78,20 +78,7 @@ class BaseFormatter:
             "header": header,
             "rows": rows,
         }
-        self.rm_cols(data)
         return data
-
-    def rm_cols(self, data, cols={}):
-        if len(cols) == 0:
-            return
-        idxs = []
-        for i in range(len(data["header"])-1, -1, -1):
-            if data["header"][i] in cols:
-                idxs.append(i)
-                data["header"].pop(i)
-        for row in data["rows"]:
-            for i in idxs:
-                row.pop(i)
 
     def format_rows(self,
                     header,
@@ -113,12 +100,8 @@ class BaseFormatter:
                 col = header[j]
 
                 # First column (blank header) contains row number
-                # except total row contains total number of rows
-                if col == "" and i == 0:
-                    rows[i][j] = default_numeric_fmt(len(rows)-1)
-                    continue
-                elif col == "" and value == "":
-                    rows[i][j] = default_numeric_fmt(float(i))
+                if col == "" and value == "":
+                    rows[i][j] = default_numeric_fmt(float(i+1))
                     continue
 
                 # Any column with a numeric value < 0 is undefined
