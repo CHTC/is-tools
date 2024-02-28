@@ -9,7 +9,6 @@ import cephfs
 import smtplib
 import argparse
 import datetime
-from email.mime.text import MIMEText
 from email.message import EmailMessage
 from email_formatter import BaseFormatter
 
@@ -214,7 +213,9 @@ def send_email():
     msg = EmailMessage()
     table_filenames = [f"{cluster}_{options.report_file}" for cluster in options.report_dirs]
     formatter = BaseFormatter(table_files=table_filenames)
-    msg.set_content(MIMEText(formatter.get_html(), "html"))
+    html = formatter.get_html()
+    msg.set_content('This is a fallback for html report content.')
+    msg.add_alternative(html, subtype='html')
     msg["Subject"] = f"Quota Usage Report for {datetime.date.today()}"
     msg["From"] = options.sender
     msg["To"] = options.receivers
