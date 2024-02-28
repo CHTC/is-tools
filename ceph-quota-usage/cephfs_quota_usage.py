@@ -137,6 +137,7 @@ class CephFS_Wrapper:
 
         bytes_entry = self.get_quota_usage_entry(path, "ceph.quota.max_bytes", "ceph.dir.rbytes")
         files_entry = self.get_quota_usage_entry(path, "ceph.quota.max_files", "ceph.dir.rfiles")
+        last_modified_epoch = round(float(self.get_xattr(path, "ceph.dir.rctime")))
         backing_pool = self.get_xattr(path, "ceph.dir.layout.pool")
 
         # Gibibyte conversion for byte quota and usage
@@ -146,9 +147,12 @@ class CephFS_Wrapper:
             if bytes_entry[1] != "-":
                 bytes_entry[1] = CephFS_Wrapper.bytes_to_gibibytes(int(bytes_entry[1]))
 
-        if not None in (bytes_entry, files_entry, backing_pool):
+        last_modified = datetime.datetime.utcfromtimestamp(last_modified_epoch).strftime('%Y-%m-%d')
+
+        if not None in (bytes_entry, files_entry, last_modified, backing_pool):
             row.extend(bytes_entry)
             row.extend(files_entry)
+            row.append(last_modified)
             row.append(backing_pool)
             return row
         else:
@@ -185,6 +189,7 @@ def create_report_file(cluster):
             "File Count Quota",
             "File Count Usage",
             "File Count Usage (%)",
+            "Last Modified",
             "Backing Pool",
         )
     ]

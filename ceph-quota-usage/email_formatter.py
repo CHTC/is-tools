@@ -25,6 +25,7 @@ DEFAULT_COL_FORMATS    = {
     "File Count Quota" : lambda x: f"<td class=\"numeric\">{int(x)}</td>",
     "File Count Usage" : lambda x: f"<td class=\"numeric\">{int(x)}</td>",
     "File Count Usage (%)" : lambda x: f"<td class=\"numeric\">{float(x):.2f}</td>",
+    "Last Modified" : lambda x: f"<td class=\"text\">{str(x)}</td>",
     "Backing Pool" : lambda x: f"<td class=\"text\">{str(x)}</td>",
 }
 
