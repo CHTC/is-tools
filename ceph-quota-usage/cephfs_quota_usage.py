@@ -235,6 +235,15 @@ def send_email():
     html = formatter.get_html()
     msg.set_content('This is a fallback for html report content.')
     msg.add_alternative(html, subtype='html')
+    #Add attachments
+    for fname in table_filenames:
+        fpath = Path(fname)
+        part = MIMEBase("application", "octet-stream")
+        with fpath.open("rb") as f:
+            part.set_payload(f.read())
+        encoders.encode_base64(part)
+        part.add_header("Content-Disposition", "attachment", filename = fpath.name)
+        msg.attach(part)
     msg["Subject"] = f"Quota Usage Report for {datetime.date.today()}"
     msg["From"] = options.sender
     msg["To"] = options.receivers
