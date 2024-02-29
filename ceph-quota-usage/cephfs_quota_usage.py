@@ -9,6 +9,9 @@ import cephfs
 import smtplib
 import argparse
 import datetime
+from pathlib import Path
+from email import encoders
+from email.mime.base import MIMEBase
 from email.message import EmailMessage
 from email_formatter import BaseFormatter
 
@@ -31,6 +34,7 @@ class Options:
     sender = None
     receivers = None
     cluster_clients = None
+    sort_by = "bytes_used"
 
 
 options = Options()
@@ -111,8 +115,11 @@ class CephFS_Wrapper:
                 print(f"Error on path {path}\n\tError : {e}\n")
             return ""
 
-    def get_quota_usage_entry(self, path, quota_xattr, usage_xattr):
+    def get_quota_usage_entry(self, path, key_prefix, quota_xattr, usage_xattr):
         bytepath = bytes(path.encode())
+        quota_key = f"{key_prefix}_quota"
+        usage_key = f"{key_prefix}_used"
+        percent_key =f"{key_prefix}_percent"
         try:
             quota_val = int(self.fs.getxattr(bytepath, quota_xattr))
             usage_val = int(self.fs.getxattr(bytepath, usage_xattr))
@@ -121,7 +128,7 @@ class CephFS_Wrapper:
             else:
                 quota_val = "-"
                 usage_percent = "-"
-            return [quota_val, usage_val, usage_percent]
+            return {quota_key : quota_val, usage_key : usage_val, percent_key : usage_percent}
         except Exception as e:
             # Error code for "No xattr data for this path"
             if e.args[0] != self.NO_DATA_AVAIL_ERROR_NUM:
@@ -133,27 +140,30 @@ class CephFS_Wrapper:
         return round((byte_count / math.pow(1024, 3)), 2)
 
     def get_report_entry(self, path):
-        row = [path]
+        row = {"path" : path}
 
-        bytes_entry = self.get_quota_usage_entry(path, "ceph.quota.max_bytes", "ceph.dir.rbytes")
-        files_entry = self.get_quota_usage_entry(path, "ceph.quota.max_files", "ceph.dir.rfiles")
-        last_modified_epoch = round(float(self.get_xattr(path, "ceph.dir.rctime")))
-        backing_pool = self.get_xattr(path, "ceph.dir.layout.pool")
+        bytes_entry = self.get_quota_usage_entry(path, "bytes", "ceph.quota.max_bytes", "ceph.dir.rbytes")
+        files_entry = self.get_quota_usage_entry(path, "files", "ceph.quota.max_files", "ceph.dir.rfiles")
+        rctime =  round(float(self.get_xattr(path, "ceph.dir.rctime")))
+        backing_pool_entry = {"backing_pool" : self.get_xattr(path, "ceph.dir.layout.pool")}
 
         # Gibibyte conversion for byte quota and usage
         if bytes_entry:
-            if bytes_entry[0] != "-":
-                bytes_entry[0] = CephFS_Wrapper.bytes_to_gibibytes(int(bytes_entry[0]))
-            if bytes_entry[1] != "-":
-                bytes_entry[1] = CephFS_Wrapper.bytes_to_gibibytes(int(bytes_entry[1]))
+            if bytes_entry["bytes_quota"] != "-":
+                bytes_entry["bytes_quota"] = CephFS_Wrapper.bytes_to_gibibytes(int(bytes_entry["bytes_quota"]))
+            if bytes_entry["bytes_used"] != "-":
+                bytes_entry["bytes_used"] = CephFS_Wrapper.bytes_to_gibibytes(int(bytes_entry["bytes_used"]))
 
-        last_modified = datetime.datetime.utcfromtimestamp(last_modified_epoch).strftime('%Y-%m-%d')
+        last_modified_entry = None
+        if rctime and not rctime is "":
+            last_modified_date = datetime.datetime.utcfromtimestamp(rctime).strftime('%Y-%m-%d')
+            last_modified_entry = {"last_modified_date" : last_modified_date}
 
-        if not None in (bytes_entry, files_entry, last_modified, backing_pool):
-            row.extend(bytes_entry)
-            row.extend(files_entry)
-            row.append(last_modified)
-            row.append(backing_pool)
+        if not None in (bytes_entry, files_entry, last_modified_entry, backing_pool_entry):
+            row.update(bytes_entry)
+            row.update(files_entry)
+            row.update(last_modified_entry)
+            row.update(backing_pool_entry)
             return row
         else:
             return None
@@ -167,16 +177,17 @@ class CephFS_Wrapper:
 
         while dir_entry:
             subdir_name = bytes(dir_entry.d_name).decode()
-            if dir_entry.d_type == self.DIRENTRY_TYPE["DIR"] and b"." not in dir_entry.d_name:
+            if dir_entry.d_type is self.DIRENTRY_TYPE["DIR"] and b"." not in dir_entry.d_name:
                 subdir_path = os.path.join(path, subdir_name, "")
                 row = self.get_report_entry(subdir_path)
                 if row:
-                    entries.append(tuple(row))
+                    entries.append(row)
 
             dir_entry = self.fs.readdir(dr)
 
         self.fs.closedir(dr)
-        return sorted(entries)
+        sort_function = (lambda x : x[options.sort_by] if not x[options.sort_by] is "-"  else None)
+        return sorted(entries, key = sort_function, reverse = True)
 
 
 def create_report_file(cluster):
@@ -211,7 +222,10 @@ def create_report_file(cluster):
     with open(f"{cluster}_{options.report_file}", "w", newline="") as csvfile:
         writer = csv.writer(csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL)
         for row in table:
-            writer.writerow(row)
+            if isinstance(row, tuple):
+                writer.writerow(row)
+            elif isinstance(row, dict):
+                writer.writerow(row.values())
 
 
 def send_email():
