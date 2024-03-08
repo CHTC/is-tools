@@ -67,7 +67,8 @@ def get_subnets(data_directory):
       mask = ""
 
       try:
-        if (d := data["file"][f'{XT}{t}']["content"]):
+        d = data["file"][f'{XT}{t}']["content"]
+        if d:
           if "0701" in d:
             mask = d["0701"].keys()
           elif "0700" in d and d["0700"]: # can sometimes be false
@@ -199,7 +200,8 @@ def get_primary_addrs(node):
         # using a try-except instead of nested ifs to check if the specific yaml field containing
         # the IP address exists in the current file
         try:
-          if (ips := node["file"][f'{XT}{k}']["content"][v]) != False:
+          ips = node["file"][f'{XT}{k}']["content"][v]
+          if ips != False:
             for ip in ips:
               val = ip.split("=")[1]
               if val != "overwriteme":
