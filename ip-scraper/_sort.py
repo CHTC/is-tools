@@ -3,7 +3,7 @@ Subnet mask and IP address calculations/conversions
 """
 
 
-def get_addresses_from_subnet_mask(addr: str, mask: str) -> tuple:
+def get_addresses_from_subnet_mask(addr, mask):
   """
   Calculates network and host addresses using subnet masks and node IP addresses.
 
@@ -45,7 +45,7 @@ def get_addresses_from_subnet_mask(addr: str, mask: str) -> tuple:
   return (''.join(pos[:-1]), ''.join(neg[:-1]))
 
 
-def binary_to_value_ip(ip: str) -> str:
+def binary_to_value_ip(ip):
   """
   Converts IP from binary string to integer string.
 
@@ -73,7 +73,7 @@ def binary_to_value_ip(ip: str) -> str:
   return ''.join(res[:-1])
 
 
-def count_ones_bits(ip: str) -> int:
+def count_ones_bits(ip):
   """
   Counts the numbers of ones bits in the IP.
 
@@ -95,7 +95,7 @@ def count_ones_bits(ip: str) -> int:
   return bits
 
 
-def construct_ip(host: str, bits: int) -> list:
+def construct_ip(host, bits):
   """
   Constructs all valid ip addresses from the HOST address with the number of free BITS.
 
