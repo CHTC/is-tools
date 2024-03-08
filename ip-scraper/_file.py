@@ -20,7 +20,7 @@ nodes_mp = {
 XT = "/etc/sysconfig/network-scripts/ifcfg-"
 
 
-def get_yaml_file(filepath: str) -> dict:
+def get_yaml_file(filepath):
   """
   Loads yaml file located at FILEPATH.
 
@@ -46,7 +46,7 @@ def get_yaml_file(filepath: str) -> dict:
       exit(f'An error occured in: {filepath}\n{exc}')
 
 
-def get_subnets(data_directory: str) -> dict:
+def get_subnets(data_directory):
   """
   Scrapes subnet masks from each file in the "site" directory.
 
@@ -67,7 +67,8 @@ def get_subnets(data_directory: str) -> dict:
       mask = ""
 
       try:
-        if (d := data["file"][f'{XT}{t}']["content"]):
+        d = data["file"][f'{XT}{t}']["content"]
+        if d:
           if "0701" in d:
             mask = d["0701"].keys()
           elif "0700" in d and d["0700"]: # can sometimes be false
@@ -89,7 +90,7 @@ def get_subnets(data_directory: str) -> dict:
   return subnets
 
 
-def get_nodes(data_directory: str) -> dict:
+def get_nodes(data_directory):
   """
   Scrapes primary and BMC NIC IP address information from each file in the "node" directory.
 
@@ -132,7 +133,7 @@ def get_nodes(data_directory: str) -> dict:
   return addrs
 
 
-def get_bmc_addrs(node: dict) -> list:
+def get_bmc_addrs(node):
   """
   Gets IP addresses of BMC NICs from NODE.
 
@@ -165,7 +166,7 @@ def get_bmc_addrs(node: dict) -> list:
     return [node["bmc"]["lan"]["ip_address"]]
 
 
-def get_primary_addrs(node: dict) -> list:
+def get_primary_addrs(node):
   """
   Gets IP addresses of primary NICs from NODE.
 
@@ -199,7 +200,8 @@ def get_primary_addrs(node: dict) -> list:
         # using a try-except instead of nested ifs to check if the specific yaml field containing
         # the IP address exists in the current file
         try:
-          if (ips := node["file"][f'{XT}{k}']["content"][v]) != False:
+          ips = node["file"][f'{XT}{k}']["content"][v]
+          if ips != False:
             for ip in ips:
               val = ip.split("=")[1]
               if val != "overwriteme":

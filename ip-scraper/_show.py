@@ -5,7 +5,7 @@ Output formatting for display purposes
 from _sort import *
 
 
-def print_nodes(nodes: dict):
+def print_nodes(nodes):
   for n in nodes:
     print(f'---{n}---')
     if "bmc" in nodes[n]:
@@ -18,13 +18,7 @@ def print_nodes(nodes: dict):
       print(f'    {x}')
 
 
-def display_unused_ips(
-  nodes: set, 
-  subnet: str, 
-  host: str, 
-  display_used: bool = False, 
-  first: bool = False,
-):
+def display_unused_ips(nodes, subnet, host, display_used = False, first = False):
   msk_cnt = count_ones_bits(subnet)
   used, unused = [], []
   for ip in construct_ip(host, msk_cnt):
