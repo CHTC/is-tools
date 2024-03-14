@@ -3,6 +3,7 @@
 import os
 import csv
 import sys
+import json
 import math
 import rados
 import cephfs
@@ -87,6 +88,7 @@ def parse_args(args):
 class CephFS_Wrapper:
     DIRENTRY_TYPE = {"DIR": 4, "FILE": 8, "LINK": "A"}
     NO_DATA_AVAIL_ERROR_NUM = 61
+    POOL_STATS = ["stored", "max_avail", "percent_used"]
     cluster = None
     fs = None
 
@@ -98,6 +100,7 @@ class CephFS_Wrapper:
             conf=dict(keyring=f"{cluster_identifier}/client.{client_name}"),
         )
         self.cluster = cluster
+        self.cluster.connect()
         fs = cephfs.LibCephFS(rados_inst=self.cluster)
         fs.mount(b"/", b"cephfs")
         self.fs = fs
@@ -144,6 +147,9 @@ class CephFS_Wrapper:
 
     def bytes_to_gibibytes(byte_count):
         return round((byte_count / math.pow(1024, 3)), 2)
+
+    def bytes_to_tebibytes(byte_count):
+        return round((byte_count / math.pow(1024, 4)), 2)
 
     def get_report_entry(self, path):
         row = {"path" : path}
@@ -195,22 +201,40 @@ class CephFS_Wrapper:
         sort_function = (lambda x : x[options.sort_by] if not x[options.sort_by] is "-"  else None)
         return sorted(entries, key = sort_function, reverse = True)
 
+    def get_rados_data(self, pool_names):
+        storage_list = []
+        pools_list = []
+        command = self.cluster.mon_command(json.dumps({"prefix": "df", "format": "json"}), b"")
+        ob = json.loads(command[1])
+        for key in ob["stats_by_class"]:
+            storage_row = {"storage_class": key}
+            storage_row.update(ob["stats_by_class"][key])
+            storage_list.append(storage_row)
 
-def create_report_file(cluster):
-    table = [
-        (
-            "Path",
-            "Byte Quota (Gibibytes)",
-            "Byte Usage (Gibibytes)",
-            "Percent Bytes Used (%)",
-            "File Count Quota",
-            "File Count Usage",
-            "File Count Usage (%)",
-            "Last Modified",
-            "Backing Pool",
-        )
-    ]
+        for pool_i in range(len(ob["pools"])):
+            pool_name = ob["pools"][pool_i]["name"]
+            if pool_name in pool_names:
+                pool_stats = {"name": pool_name}
+                for stat in self.POOL_STATS:
+                    pool_stats[stat] = ob["pools"][pool_i]["stats"][stat]
+                pools_list.append(pool_stats)
 
+        return storage_list, pools_list
+
+
+def write_to_file(filename, header, rows):
+    with open(filename, "w", newline="") as csvfile:
+        writer = csv.writer(csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(header)
+        for row in rows:
+            if isinstance(row, tuple):
+                writer.writerow(row)
+            elif isinstance(row, dict):
+                writer.writerow(row.values())
+
+
+def get_quota_rows(cluster):
+    rows = []
     toplevel_quota_usages = []
     subdir_quota_usages = []
     cluster_fs = CephFS_Wrapper(cluster, options.cluster_clients[cluster])
@@ -220,23 +244,72 @@ def create_report_file(cluster):
             toplevel_quota_usages.append(toplevel_entry)
         subdir_quota_usages.extend(cluster_fs.get_report_entries_dir(path))
 
-    table.extend(toplevel_quota_usages)
+    rows.extend(toplevel_quota_usages)
 
     nonduplicate_subdir_usages = list(row for row in subdir_quota_usages if row not in toplevel_quota_usages)
-    table.extend(nonduplicate_subdir_usages)
-
-    with open(f"{cluster}_{options.report_file}", "w", newline="") as csvfile:
-        writer = csv.writer(csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL)
-        for row in table:
-            if isinstance(row, tuple):
-                writer.writerow(row)
-            elif isinstance(row, dict):
-                writer.writerow(row.values())
+    rows.extend(nonduplicate_subdir_usages)
+    return rows
 
 
-def send_email():
+def get_storage_and_pool_data(cluster, pool_names):
+    cluster_fs = CephFS_Wrapper(cluster, options.cluster_clients[cluster])
+    storage_data, pool_data = cluster_fs.get_rados_data(pool_names)
+    for row in pool_data:
+        pool_id = cluster_fs.fs.get_pool_id(row["name"])
+        row["replication_factor"] = cluster_fs.fs.get_pool_replication(pool_id)
+
+    for row in storage_data + pool_data:
+        for key in row:
+            if isinstance(row[key], float):
+                row[key] = round(row[key] * 100, 2)
+            if isinstance(row[key], int) and row[key] > math.pow(1024, 4):
+                row[key] = CephFS_Wrapper.bytes_to_tebibytes(row[key])
+
+    return storage_data, pool_data
+
+
+def create_filename(cluster, pattern):
+    return f"{cluster}_{pattern}_{datetime.date.today()}.csv"
+
+
+def create_report_files_for_cluster(cluster):
+    quotas_header = (
+        "Path",
+        "Byte Quota (Gibibytes)",
+        "Byte Usage (Gibibytes)",
+        "Percent Bytes Used (%)",
+        "File Count Quota",
+        "File Count Usage",
+        "Percent File Count Usage (%)",
+        "Last Modified",
+        "Backing Pool",
+    )
+    quota_rows = get_quota_rows(cluster)
+    quota_filename = create_filename(cluster,options.report_file_pattern)
+    write_to_file(quota_filename, quotas_header, quota_rows)
+
+    storage_header = (
+        "Class",
+        "Total Size (Tebibytes)",
+        "Available (Tebibytes)",
+        "Used (Tebibytes)",
+        "Raw Used (Tebibytes)",
+        "% Used",
+    )
+    pools_header = ("Pool", "Stored (Tebibytes)", "Available (Tebibytes)", "% Used", "Replication Factor")
+    backing_pools = set((row["backing_pool"] for row in quota_rows))
+
+    storage_rows, pools_rows = get_storage_and_pool_data(cluster, backing_pools)
+    storage_filename = create_filename(cluster,options.storage_file_pattern)
+    pools_filename = create_filename(cluster,options.pools_file_pattern)
+    write_to_file(storage_filename, storage_header, storage_rows)
+    write_to_file(pools_filename, pools_header, pools_rows)
+
+    return storage_filename, pools_filename, quota_filename
+
+
+def send_email(table_filenames):
     msg = EmailMessage()
-    table_filenames = [f"{cluster}_{options.report_file}" for cluster in options.report_dirs]
     formatter = BaseFormatter(table_files=table_filenames)
     html = formatter.get_html()
     msg.set_content('This is a fallback for html report content.')
@@ -261,9 +334,11 @@ def send_email():
 
 def main(args):
     parse_args(args)
+    table_filenames = []
     for cluster in options.report_dirs:
-        create_report_file(cluster)
-    send_email()
+        cluster_filenames = create_report_files_for_cluster(cluster)
+        table_filenames.extend(cluster_filenames)
+    send_email(table_filenames)
 
 
 if __name__ == "__main__":

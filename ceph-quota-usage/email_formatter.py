@@ -15,18 +15,26 @@ def break_chars(s):
     return s
 
 
-DEFAULT_TEXT_FORMAT    = lambda x: f'<td class="other">{break_chars(x)}</td>'
-DEFAULT_NUMERIC_FORMAT = lambda x: f"<td class=\"numeric\">{int(x):,}</td>"
-DEFAULT_COL_FORMATS    = {
-    "Path" : lambda x: f"<td class=\"text\">{str(x)}</td>",
-    "Byte Quota (Gibibytes)" : lambda x: f"<td class=\"numeric\">{float(x):.2f}</td>",
-    "Byte Usage (Gibibytes)" : lambda x: f"<td class=\"numeric\">{float(x):.2f}</td>",
-    "Percent Bytes Used (%)" : lambda x: f"<td class=\"numeric\">{float(x):.2f}</td>",
-    "File Count Quota" : lambda x: f"<td class=\"numeric\">{int(x)}</td>",
-    "File Count Usage" : lambda x: f"<td class=\"numeric\">{int(x)}</td>",
-    "File Count Usage (%)" : lambda x: f"<td class=\"numeric\">{float(x):.2f}</td>",
-    "Last Modified" : lambda x: f"<td class=\"text\">{str(x)}</td>",
-    "Backing Pool" : lambda x: f"<td class=\"text\">{str(x)}</td>",
+DEFAULT_TEXT_FORMAT = lambda x: f'<td class="other">{break_chars(x)}</td>'
+DEFAULT_NUMERIC_FORMAT = lambda x: f'<td class="numeric">{int(x):,}</td>'
+DEFAULT_COL_FORMATS = {
+    "Path": lambda x: f'<td class="text">{str(x)}</td>',
+    "Byte Quota (Gibibytes)": lambda x: f'<td class="numeric">{float(x):.2f}</td>',
+    "Byte Usage (Gibibytes)": lambda x: f'<td class="numeric">{float(x):.2f}</td>',
+    "Percent Bytes Used (%)": lambda x: f'<td class="numeric">{float(x):.2f}</td>',
+    "File Count Quota": lambda x: f'<td class="numeric">{int(x)}</td>',
+    "File Count Usage": lambda x: f'<td class="numeric">{int(x)}</td>',
+    "File Count Usage (%)": lambda x: f'<td class="numeric">{float(x):.2f}</td>',
+    "Last Modified": lambda x: f'<td class="text">{str(x)}</td>',
+    "Backing Pool": lambda x: f'<td class="text">{str(x)}</td>',
+    "Class": lambda x: f'<td class="text">{str(x)}</td>',
+    "Total Size (Tebibytes)": lambda x: f'<td class="numeric">{float(x):.2f}</td>',
+    "Available (Tebibytes)": lambda x: f'<td class="numeric">{float(x):.2f}</td>',
+    "Used (Tebibytes)": lambda x: f'<td class="numeric">{float(x):.2f}</td>',
+    "Raw Used (Tebibytes)": lambda x: f'<td class="numeric">{float(x):.2f}</td>',
+    "% Used": lambda x: f'<td class="numeric">{float(x):.2f}</td>',
+    "Pool": lambda x: f'<td class="text">{str(x)}</td>',
+    "Stored (Tebibytes)": lambda x: f'<td class="numeric">{float(x):.2f}</td>',
 }
 
 DEFAULT_STYLES = {
