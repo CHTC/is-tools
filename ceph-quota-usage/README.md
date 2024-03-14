@@ -98,7 +98,7 @@ To set which clusters and directories the script will report on, which email add
             A string that will be appended to the Cluster identifier to create the names of the files created for the report by the script.
 
             Example usage:
-                "... -o QUOTA_REPORT.csv"
+                "... -o QUOTA_REPORT"
                     if this option with this example value was specified, and one of the cluster identifiers that was being reported on was "HPC", then the data for the report on quota usage for the "HPC" cluster would be saved to a file called "HPC_QUOTA_REPORT.csv" (which will also be attached to the email the script sends out)
 
       - "-s", "--sender":
