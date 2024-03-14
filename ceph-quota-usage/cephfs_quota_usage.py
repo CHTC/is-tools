@@ -131,7 +131,7 @@ class CephFS_Wrapper:
         bytepath = bytes(path.encode())
         quota_key = f"{key_prefix}_quota"
         usage_key = f"{key_prefix}_used"
-        percent_key =f"{key_prefix}_percent"
+        percent_key = f"{key_prefix}_percent"
         try:
             quota_val = int(self.fs.getxattr(bytepath, quota_xattr))
             usage_val = int(self.fs.getxattr(bytepath, usage_xattr))
@@ -140,7 +140,7 @@ class CephFS_Wrapper:
             else:
                 quota_val = "-"
                 usage_percent = "-"
-            return {quota_key : quota_val, usage_key : usage_val, percent_key : usage_percent}
+            return {quota_key: quota_val, usage_key: usage_val, percent_key: usage_percent}
         except Exception as e:
             # Error code for "No xattr data for this path"
             if e.args[0] != self.NO_DATA_AVAIL_ERROR_NUM:
@@ -155,11 +155,11 @@ class CephFS_Wrapper:
         return round((byte_count / math.pow(1024, 4)), 2)
 
     def get_report_entry(self, path):
-        row = {"path" : path}
+        row = {"path": path}
 
         bytes_entry = self.get_quota_usage_entry(path, "bytes", "ceph.quota.max_bytes", "ceph.dir.rbytes")
         files_entry = self.get_quota_usage_entry(path, "files", "ceph.quota.max_files", "ceph.dir.rfiles")
-        rctime =  round(float(self.get_xattr(path, "ceph.dir.rctime")))
+        rctime = round(float(self.get_xattr(path, "ceph.dir.rctime")))
         dir_backing_pool = self.get_xattr(path, "ceph.dir.layout.pool")
 
         # Gibibyte conversion for byte quota and usage
@@ -295,7 +295,7 @@ def create_report_files_for_cluster(cluster):
         "Backing Pool",
     )
     quota_rows = get_quota_rows(cluster)
-    quota_filename = create_filename(cluster,options.report_file_pattern)
+    quota_filename = create_filename(cluster, options.report_file_pattern)
     write_to_file(quota_filename, quotas_header, quota_rows)
 
     storage_header = (
@@ -310,8 +310,8 @@ def create_report_files_for_cluster(cluster):
     backing_pools = set((row["backing_pool"] for row in quota_rows))
 
     storage_rows, pools_rows = get_storage_and_pool_data(cluster, backing_pools)
-    storage_filename = create_filename(cluster,options.storage_file_pattern)
-    pools_filename = create_filename(cluster,options.pools_file_pattern)
+    storage_filename = create_filename(cluster, options.storage_file_pattern)
+    pools_filename = create_filename(cluster, options.pools_file_pattern)
     write_to_file(storage_filename, storage_header, storage_rows)
     write_to_file(pools_filename, pools_header, pools_rows)
 
@@ -322,16 +322,16 @@ def send_email(table_filenames):
     msg = EmailMessage()
     formatter = BaseFormatter(table_files=table_filenames)
     html = formatter.get_html()
-    msg.set_content('This is a fallback for html report content.')
-    msg.add_alternative(html, subtype='html')
-    #Add attachments
+    msg.set_content("This is a fallback for html report content.")
+    msg.add_alternative(html, subtype="html")
+    # Add attachments
     for fname in table_filenames:
         fpath = Path(fname)
         part = MIMEBase("application", "octet-stream")
         with fpath.open("rb") as f:
             part.set_payload(f.read())
         encoders.encode_base64(part)
-        part.add_header("Content-Disposition", "attachment", filename = fpath.name)
+        part.add_header("Content-Disposition", "attachment", filename=fpath.name)
         msg.attach(part)
     msg["Subject"] = f"Quota Usage Report for {datetime.date.today()}"
     msg["From"] = options.sender

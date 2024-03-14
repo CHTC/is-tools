@@ -1,7 +1,9 @@
 import csv
+
 #
 # This code was mostly shamelessly taken and repurposed from Jason Patton's JobAccounting reporting scripts.
 #
+
 
 def break_chars(s):
     # Break after [@_.]
@@ -38,19 +40,16 @@ DEFAULT_COL_FORMATS = {
 }
 
 DEFAULT_STYLES = {
-    "body": [
-        "font-size: 11pt",
-        "font-family: sans-serif"
-        ],
+    "body": ["font-size: 11pt", "font-family: sans-serif"],
     "h1": [
         "font-size: 12pt",
         "text-align: center",
-        ],
+    ],
     "table": [
         "font-size: 10pt",
         "border-collapse: collapse",
         "border-color: #ffffff",
-        ],
+    ],
     "tr.odd": ["background-color: #fee"],
     "tr.even": ["background-color: #fff"],
     "th": [
@@ -59,12 +58,12 @@ DEFAULT_STYLES = {
         "text-align: center",
         "background-color: #ddd",
         "min-width: 1px",
-        ],
+    ],
     "td": [
         "border: 1px solid black",
         "text-align: left",
         "min-width: 1px",
-        ],
+    ],
     "td.text": ["text-align: left"],
     "td.numeric": ["text-align: right"],
     "td.other": ["text-align: right"],
@@ -89,13 +88,7 @@ class BaseFormatter:
         }
         return data
 
-    def format_rows(self,
-                    header,
-                    rows,
-                    custom_fmts={},
-                    default_text_fmt=None,
-                    default_numeric_fmt=None
-                        ):
+    def format_rows(self, header, rows, custom_fmts={}, default_text_fmt=None, default_numeric_fmt=None):
         fmts = DEFAULT_COL_FORMATS.copy()
         fmts.update(custom_fmts)
         if default_text_fmt is None:
@@ -110,7 +103,7 @@ class BaseFormatter:
 
                 # First column (blank header) contains row number
                 if col == "" and value == "":
-                    rows[i][j] = default_numeric_fmt(float(i+1))
+                    rows[i][j] = default_numeric_fmt(float(i + 1))
                     continue
 
                 # Any column with a numeric value < 0 is undefined
