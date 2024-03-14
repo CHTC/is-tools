@@ -29,7 +29,7 @@ DEFAULT_REPORT_DIRS = [
     "HPC:/software/",
     "HPC:/software/groups/",
 ]
-DEFAULT_REPORT_FILENAME = "Quota_Usage_Report.csv"
+DEFAULT_REPORT_PATTERN = "Quota_Usage_Report"
 DEFAULT_SENDER_ADDRESS = "wnswanson@wisc.edu"
 DEFAULT_RECEIVER_ADDRESSES = ["wnswanson@wisc.edu"]
 DEFAULT_CLUSTERS = ["HTC:INF-896", "HPC:quotareport"]
@@ -37,7 +37,9 @@ DEFAULT_CLUSTERS = ["HTC:INF-896", "HPC:quotareport"]
 
 class Options:
     report_dirs = None
-    report_file = None
+    report_file_pattern = None
+    storage_file_pattern = "Storage_By_Class"
+    pools_file_pattern = "Pools_Data"
     sender = None
     receivers = None
     cluster_clients = None
@@ -50,7 +52,7 @@ options = Options()
 def parse_args(args):
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--directories", nargs="*", default=DEFAULT_REPORT_DIRS)
-    parser.add_argument("-f", "--filename", default=DEFAULT_REPORT_FILENAME)
+    parser.add_argument("-o", "--output_file_pattern", default=DEFAULT_REPORT_PATTERN)
     parser.add_argument("-s", "--sender", default=DEFAULT_SENDER_ADDRESS)
     parser.add_argument("-r", "--receivers", nargs="*", default=DEFAULT_RECEIVER_ADDRESSES)
     parser.add_argument("-c", "--clusters", nargs="*", default=DEFAULT_CLUSTERS)
@@ -73,7 +75,7 @@ def parse_args(args):
         print(f"Error creating Cluster-Directory mapping: {e}")
         raise e
     options.report_dirs = report_dirs_dict
-    options.report_file = parsed_args.filename
+    options.report_file_pattern = parsed_args.output_file_pattern
     options.sender = parsed_args.sender
     options.receivers = parsed_args.receivers
     # Create Cluster-Identifier to Client-Name dictionary
