@@ -44,6 +44,7 @@ class Options:
     receivers = None
     cluster_clients = None
     sort_by = "bytes_used"
+    sort_reverse = True
 
 
 options = Options()
@@ -159,25 +160,32 @@ class CephFS_Wrapper:
         bytes_entry = self.get_quota_usage_entry(path, "bytes", "ceph.quota.max_bytes", "ceph.dir.rbytes")
         files_entry = self.get_quota_usage_entry(path, "files", "ceph.quota.max_files", "ceph.dir.rfiles")
         rctime =  round(float(self.get_xattr(path, "ceph.dir.rctime")))
-        backing_pool_entry = {"backing_pool" : self.get_xattr(path, "ceph.dir.layout.pool")}
+        dir_backing_pool = self.get_xattr(path, "ceph.dir.layout.pool")
 
         # Gibibyte conversion for byte quota and usage
         if bytes_entry:
             if bytes_entry["bytes_quota"] != "-":
                 bytes_entry["bytes_quota"] = CephFS_Wrapper.bytes_to_gibibytes(int(bytes_entry["bytes_quota"]))
-            if bytes_entry["bytes_used"] != "-":
-                bytes_entry["bytes_used"] = CephFS_Wrapper.bytes_to_gibibytes(int(bytes_entry["bytes_used"]))
+            bytes_entry["bytes_used"] = CephFS_Wrapper.bytes_to_gibibytes(int(bytes_entry["bytes_used"]))
 
-        last_modified_entry = None
+        last_modified_date = None
         if rctime and not rctime is "":
-            last_modified_date = datetime.datetime.utcfromtimestamp(rctime).strftime('%Y-%m-%d')
-            last_modified_entry = {"last_modified_date" : last_modified_date}
+            last_modified_date = datetime.datetime.utcfromtimestamp(rctime).strftime("%Y-%m-%d")
 
-        if not None in (bytes_entry, files_entry, last_modified_entry, backing_pool_entry):
+        backing_pool = None
+        if not dir_backing_pool is "":
+            backing_pool = dir_backing_pool
+        else:
+            for parent in Path(path).parents:
+                if not self.get_xattr(str(parent), "ceph.dir.layout.pool") is "":
+                    backing_pool = self.get_xattr(str(parent), "ceph.dir.layout.pool")
+                    break
+
+        if not None in (bytes_entry, files_entry, last_modified_date, backing_pool):
             row.update(bytes_entry)
             row.update(files_entry)
-            row.update(last_modified_entry)
-            row.update(backing_pool_entry)
+            row["last_modified_date"] = last_modified_date
+            row["backing_pool"] = backing_pool
             return row
         else:
             return None
@@ -200,8 +208,8 @@ class CephFS_Wrapper:
             dir_entry = self.fs.readdir(dr)
 
         self.fs.closedir(dr)
-        sort_function = (lambda x : x[options.sort_by] if not x[options.sort_by] is "-"  else None)
-        return sorted(entries, key = sort_function, reverse = True)
+        sort_function = lambda x: x[options.sort_by] if not x[options.sort_by] is "-" else None
+        return sorted(entries, key=sort_function, reverse=options.sort_reverse)
 
     def get_rados_data(self, pool_names):
         storage_list = []
