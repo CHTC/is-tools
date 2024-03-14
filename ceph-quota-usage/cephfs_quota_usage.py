@@ -21,11 +21,17 @@ DEFAULT_REPORT_DIRS = [
     "HTC:/htcstaging/stash/",
     "HTC:/htcstaging/stash_protected/",
     "HTC:/htcprojects/",
+    "HPC:/home/",
+    "HPC:/home/groups/",
+    "HPC:/scratch/",
+    "HPC:/scratch/groups/",
+    "HPC:/software/",
+    "HPC:/software/groups/",
 ]
 DEFAULT_REPORT_FILENAME = "Quota_Usage_Report.csv"
 DEFAULT_SENDER_ADDRESS = "wnswanson@wisc.edu"
 DEFAULT_RECEIVER_ADDRESSES = ["wnswanson@wisc.edu"]
-DEFAULT_CLUSTERS = ["HTC:INF-896"]
+DEFAULT_CLUSTERS = ["HTC:INF-896", "HPC:quotareport"]
 
 
 class Options:
