@@ -3,6 +3,7 @@
 import os
 import csv
 import sys
+import json
 import math
 import rados
 import cephfs
@@ -21,20 +22,29 @@ DEFAULT_REPORT_DIRS = [
     "HTC:/htcstaging/stash/",
     "HTC:/htcstaging/stash_protected/",
     "HTC:/htcprojects/",
+    "HPC:/home/",
+    "HPC:/home/groups/",
+    "HPC:/scratch/",
+    "HPC:/scratch/groups/",
+    "HPC:/software/",
+    "HPC:/software/groups/",
 ]
-DEFAULT_REPORT_FILENAME = "Quota_Usage_Report.csv"
+DEFAULT_REPORT_PATTERN = "Quota_Usage_Report"
 DEFAULT_SENDER_ADDRESS = "wnswanson@wisc.edu"
 DEFAULT_RECEIVER_ADDRESSES = ["wnswanson@wisc.edu"]
-DEFAULT_CLUSTERS = ["HTC:INF-896"]
+DEFAULT_CLUSTERS = ["HTC:INF-896", "HPC:quotareport"]
 
 
 class Options:
     report_dirs = None
-    report_file = None
+    report_file_pattern = None
+    storage_file_pattern = "Storage_By_Class"
+    pools_file_pattern = "Pools_Data"
     sender = None
     receivers = None
     cluster_clients = None
     sort_by = "bytes_used"
+    sort_reverse = True
 
 
 options = Options()
@@ -43,7 +53,7 @@ options = Options()
 def parse_args(args):
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--directories", nargs="*", default=DEFAULT_REPORT_DIRS)
-    parser.add_argument("-f", "--filename", default=DEFAULT_REPORT_FILENAME)
+    parser.add_argument("-o", "--output_file_pattern", default=DEFAULT_REPORT_PATTERN)
     parser.add_argument("-s", "--sender", default=DEFAULT_SENDER_ADDRESS)
     parser.add_argument("-r", "--receivers", nargs="*", default=DEFAULT_RECEIVER_ADDRESSES)
     parser.add_argument("-c", "--clusters", nargs="*", default=DEFAULT_CLUSTERS)
@@ -66,7 +76,7 @@ def parse_args(args):
         print(f"Error creating Cluster-Directory mapping: {e}")
         raise e
     options.report_dirs = report_dirs_dict
-    options.report_file = parsed_args.filename
+    options.report_file_pattern = parsed_args.output_file_pattern
     options.sender = parsed_args.sender
     options.receivers = parsed_args.receivers
     # Create Cluster-Identifier to Client-Name dictionary
@@ -81,6 +91,7 @@ def parse_args(args):
 class CephFS_Wrapper:
     DIRENTRY_TYPE = {"DIR": 4, "FILE": 8, "LINK": "A"}
     NO_DATA_AVAIL_ERROR_NUM = 61
+    POOL_STATS = ["stored", "max_avail", "percent_used"]
     cluster = None
     fs = None
 
@@ -92,6 +103,7 @@ class CephFS_Wrapper:
             conf=dict(keyring=f"{cluster_identifier}/client.{client_name}"),
         )
         self.cluster = cluster
+        self.cluster.connect()
         fs = cephfs.LibCephFS(rados_inst=self.cluster)
         fs.mount(b"/", b"cephfs")
         self.fs = fs
@@ -119,7 +131,7 @@ class CephFS_Wrapper:
         bytepath = bytes(path.encode())
         quota_key = f"{key_prefix}_quota"
         usage_key = f"{key_prefix}_used"
-        percent_key =f"{key_prefix}_percent"
+        percent_key = f"{key_prefix}_percent"
         try:
             quota_val = int(self.fs.getxattr(bytepath, quota_xattr))
             usage_val = int(self.fs.getxattr(bytepath, usage_xattr))
@@ -128,7 +140,7 @@ class CephFS_Wrapper:
             else:
                 quota_val = "-"
                 usage_percent = "-"
-            return {quota_key : quota_val, usage_key : usage_val, percent_key : usage_percent}
+            return {quota_key: quota_val, usage_key: usage_val, percent_key: usage_percent}
         except Exception as e:
             # Error code for "No xattr data for this path"
             if e.args[0] != self.NO_DATA_AVAIL_ERROR_NUM:
@@ -139,31 +151,41 @@ class CephFS_Wrapper:
     def bytes_to_gibibytes(byte_count):
         return round((byte_count / math.pow(1024, 3)), 2)
 
+    def bytes_to_tebibytes(byte_count):
+        return round((byte_count / math.pow(1024, 4)), 2)
+
     def get_report_entry(self, path):
-        row = {"path" : path}
+        row = {"path": path}
 
         bytes_entry = self.get_quota_usage_entry(path, "bytes", "ceph.quota.max_bytes", "ceph.dir.rbytes")
         files_entry = self.get_quota_usage_entry(path, "files", "ceph.quota.max_files", "ceph.dir.rfiles")
-        rctime =  round(float(self.get_xattr(path, "ceph.dir.rctime")))
-        backing_pool_entry = {"backing_pool" : self.get_xattr(path, "ceph.dir.layout.pool")}
+        rctime = round(float(self.get_xattr(path, "ceph.dir.rctime")))
+        dir_backing_pool = self.get_xattr(path, "ceph.dir.layout.pool")
 
         # Gibibyte conversion for byte quota and usage
         if bytes_entry:
             if bytes_entry["bytes_quota"] != "-":
                 bytes_entry["bytes_quota"] = CephFS_Wrapper.bytes_to_gibibytes(int(bytes_entry["bytes_quota"]))
-            if bytes_entry["bytes_used"] != "-":
-                bytes_entry["bytes_used"] = CephFS_Wrapper.bytes_to_gibibytes(int(bytes_entry["bytes_used"]))
+            bytes_entry["bytes_used"] = CephFS_Wrapper.bytes_to_gibibytes(int(bytes_entry["bytes_used"]))
 
-        last_modified_entry = None
+        last_modified_date = None
         if rctime and not rctime is "":
-            last_modified_date = datetime.datetime.utcfromtimestamp(rctime).strftime('%Y-%m-%d')
-            last_modified_entry = {"last_modified_date" : last_modified_date}
+            last_modified_date = datetime.datetime.utcfromtimestamp(rctime).strftime("%Y-%m-%d")
 
-        if not None in (bytes_entry, files_entry, last_modified_entry, backing_pool_entry):
+        backing_pool = None
+        if not dir_backing_pool is "":
+            backing_pool = dir_backing_pool
+        else:
+            for parent in Path(path).parents:
+                if not self.get_xattr(str(parent), "ceph.dir.layout.pool") is "":
+                    backing_pool = self.get_xattr(str(parent), "ceph.dir.layout.pool")
+                    break
+
+        if not None in (bytes_entry, files_entry, last_modified_date, backing_pool):
             row.update(bytes_entry)
             row.update(files_entry)
-            row.update(last_modified_entry)
-            row.update(backing_pool_entry)
+            row["last_modified_date"] = last_modified_date
+            row["backing_pool"] = backing_pool
             return row
         else:
             return None
@@ -186,25 +208,43 @@ class CephFS_Wrapper:
             dir_entry = self.fs.readdir(dr)
 
         self.fs.closedir(dr)
-        sort_function = (lambda x : x[options.sort_by] if not x[options.sort_by] is "-"  else None)
-        return sorted(entries, key = sort_function, reverse = True)
+        sort_function = lambda x: x[options.sort_by] if not x[options.sort_by] is "-" else None
+        return sorted(entries, key=sort_function, reverse=options.sort_reverse)
+
+    def get_rados_data(self, pool_names):
+        storage_list = []
+        pools_list = []
+        command = self.cluster.mon_command(json.dumps({"prefix": "df", "format": "json"}), b"")
+        ob = json.loads(command[1])
+        for key in ob["stats_by_class"]:
+            storage_row = {"storage_class": key}
+            storage_row.update(ob["stats_by_class"][key])
+            storage_list.append(storage_row)
+
+        for pool_i in range(len(ob["pools"])):
+            pool_name = ob["pools"][pool_i]["name"]
+            if pool_name in pool_names:
+                pool_stats = {"name": pool_name}
+                for stat in self.POOL_STATS:
+                    pool_stats[stat] = ob["pools"][pool_i]["stats"][stat]
+                pools_list.append(pool_stats)
+
+        return storage_list, pools_list
 
 
-def create_report_file(cluster):
-    table = [
-        (
-            "Path",
-            "Byte Quota (Gibibytes)",
-            "Byte Usage (Gibibytes)",
-            "Percent Bytes Used (%)",
-            "File Count Quota",
-            "File Count Usage",
-            "File Count Usage (%)",
-            "Last Modified",
-            "Backing Pool",
-        )
-    ]
+def write_to_file(filename, header, rows):
+    with open(filename, "w", newline="") as csvfile:
+        writer = csv.writer(csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(header)
+        for row in rows:
+            if isinstance(row, tuple):
+                writer.writerow(row)
+            elif isinstance(row, dict):
+                writer.writerow(row.values())
 
+
+def get_quota_rows(cluster):
+    rows = []
     toplevel_quota_usages = []
     subdir_quota_usages = []
     cluster_fs = CephFS_Wrapper(cluster, options.cluster_clients[cluster])
@@ -214,35 +254,84 @@ def create_report_file(cluster):
             toplevel_quota_usages.append(toplevel_entry)
         subdir_quota_usages.extend(cluster_fs.get_report_entries_dir(path))
 
-    table.extend(toplevel_quota_usages)
+    rows.extend(toplevel_quota_usages)
 
     nonduplicate_subdir_usages = list(row for row in subdir_quota_usages if row not in toplevel_quota_usages)
-    table.extend(nonduplicate_subdir_usages)
-
-    with open(f"{cluster}_{options.report_file}", "w", newline="") as csvfile:
-        writer = csv.writer(csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL)
-        for row in table:
-            if isinstance(row, tuple):
-                writer.writerow(row)
-            elif isinstance(row, dict):
-                writer.writerow(row.values())
+    rows.extend(nonduplicate_subdir_usages)
+    return rows
 
 
-def send_email():
+def get_storage_and_pool_data(cluster, pool_names):
+    cluster_fs = CephFS_Wrapper(cluster, options.cluster_clients[cluster])
+    storage_data, pool_data = cluster_fs.get_rados_data(pool_names)
+    for row in pool_data:
+        pool_id = cluster_fs.fs.get_pool_id(row["name"])
+        row["replication_factor"] = cluster_fs.fs.get_pool_replication(pool_id)
+
+    for row in storage_data + pool_data:
+        for key in row:
+            if isinstance(row[key], float):
+                row[key] = round(row[key] * 100, 2)
+            if isinstance(row[key], int) and row[key] > math.pow(1024, 4):
+                row[key] = CephFS_Wrapper.bytes_to_tebibytes(row[key])
+
+    return storage_data, pool_data
+
+
+def create_filename(cluster, pattern):
+    return f"{cluster}_{pattern}_{datetime.date.today()}.csv"
+
+
+def create_report_files_for_cluster(cluster):
+    quotas_header = (
+        "Path",
+        "Byte Quota (Gibibytes)",
+        "Byte Usage (Gibibytes)",
+        "Percent Bytes Used (%)",
+        "File Count Quota",
+        "File Count Usage",
+        "Percent File Count Usage (%)",
+        "Last Modified",
+        "Backing Pool",
+    )
+    quota_rows = get_quota_rows(cluster)
+    quota_filename = create_filename(cluster, options.report_file_pattern)
+    write_to_file(quota_filename, quotas_header, quota_rows)
+
+    storage_header = (
+        "Class",
+        "Total Size (Tebibytes)",
+        "Available (Tebibytes)",
+        "Used (Tebibytes)",
+        "Raw Used (Tebibytes)",
+        "% Used",
+    )
+    pools_header = ("Pool", "Stored (Tebibytes)", "Available (Tebibytes)", "% Used", "Replication Factor")
+    backing_pools = set((row["backing_pool"] for row in quota_rows))
+
+    storage_rows, pools_rows = get_storage_and_pool_data(cluster, backing_pools)
+    storage_filename = create_filename(cluster, options.storage_file_pattern)
+    pools_filename = create_filename(cluster, options.pools_file_pattern)
+    write_to_file(storage_filename, storage_header, storage_rows)
+    write_to_file(pools_filename, pools_header, pools_rows)
+
+    return storage_filename, pools_filename, quota_filename
+
+
+def send_email(table_filenames):
     msg = EmailMessage()
-    table_filenames = [f"{cluster}_{options.report_file}" for cluster in options.report_dirs]
     formatter = BaseFormatter(table_files=table_filenames)
     html = formatter.get_html()
-    msg.set_content('This is a fallback for html report content.')
-    msg.add_alternative(html, subtype='html')
-    #Add attachments
+    msg.set_content("This is a fallback for html report content.")
+    msg.add_alternative(html, subtype="html")
+    # Add attachments
     for fname in table_filenames:
         fpath = Path(fname)
         part = MIMEBase("application", "octet-stream")
         with fpath.open("rb") as f:
             part.set_payload(f.read())
         encoders.encode_base64(part)
-        part.add_header("Content-Disposition", "attachment", filename = fpath.name)
+        part.add_header("Content-Disposition", "attachment", filename=fpath.name)
         msg.attach(part)
     msg["Subject"] = f"Quota Usage Report for {datetime.date.today()}"
     msg["From"] = options.sender
@@ -255,9 +344,11 @@ def send_email():
 
 def main(args):
     parse_args(args)
+    table_filenames = []
     for cluster in options.report_dirs:
-        create_report_file(cluster)
-    send_email()
+        cluster_filenames = create_report_files_for_cluster(cluster)
+        table_filenames.extend(cluster_filenames)
+    send_email(table_filenames)
 
 
 if __name__ == "__main__":
