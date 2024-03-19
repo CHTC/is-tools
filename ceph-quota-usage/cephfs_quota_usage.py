@@ -243,12 +243,11 @@ def write_to_file(filename, header, rows):
                 writer.writerow(row.values())
 
 
-def get_quota_rows(cluster):
+def get_quota_rows(cluster_fs, cluster_name):
     rows = []
     toplevel_quota_usages = []
     subdir_quota_usages = []
-    cluster_fs = CephFS_Wrapper(cluster, options.cluster_clients[cluster])
-    for path in options.report_dirs[cluster]:
+    for path in options.report_dirs[cluster_name]:
         toplevel_entry = cluster_fs.get_report_entry(path)
         if toplevel_entry:
             toplevel_quota_usages.append(toplevel_entry)
@@ -261,8 +260,7 @@ def get_quota_rows(cluster):
     return rows
 
 
-def get_storage_and_pool_data(cluster, pool_names):
-    cluster_fs = CephFS_Wrapper(cluster, options.cluster_clients[cluster])
+def get_storage_and_pool_data(cluster_fs, pool_names):
     storage_data, pool_data = cluster_fs.get_rados_data(pool_names)
     for row in pool_data:
         pool_id = cluster_fs.fs.get_pool_id(row["name"])
@@ -283,6 +281,8 @@ def create_filename(cluster, pattern):
 
 
 def create_report_files_for_cluster(cluster):
+    cluster_fs = CephFS_Wrapper(cluster, options.cluster_clients[cluster])
+
     quotas_header = (
         "Path",
         "Byte Quota (Gibibytes)",
@@ -294,7 +294,7 @@ def create_report_files_for_cluster(cluster):
         "Last Modified",
         "Backing Pool",
     )
-    quota_rows = get_quota_rows(cluster)
+    quota_rows = get_quota_rows(cluster_fs, cluster)
     quota_filename = create_filename(cluster, options.report_file_pattern)
     write_to_file(quota_filename, quotas_header, quota_rows)
 
@@ -309,7 +309,7 @@ def create_report_files_for_cluster(cluster):
     pools_header = ("Pool", "Stored (Tebibytes)", "Available (Tebibytes)", "% Used", "Replication Factor")
     backing_pools = set((row["backing_pool"] for row in quota_rows))
 
-    storage_rows, pools_rows = get_storage_and_pool_data(cluster, backing_pools)
+    storage_rows, pools_rows = get_storage_and_pool_data(cluster_fs, backing_pools)
     storage_filename = create_filename(cluster, options.storage_file_pattern)
     pools_filename = create_filename(cluster, options.pools_file_pattern)
     write_to_file(storage_filename, storage_header, storage_rows)
