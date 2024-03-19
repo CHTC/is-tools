@@ -345,7 +345,7 @@ def send_email(table_filenames):
 def main(args):
     parse_args(args)
     table_filenames = []
-    for cluster in options.report_dirs:
+    for cluster in options.cluster_clients:
         cluster_filenames = create_report_files_for_cluster(cluster)
         table_filenames.extend(cluster_filenames)
     send_email(table_filenames)
