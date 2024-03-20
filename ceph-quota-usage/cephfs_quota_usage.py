@@ -318,7 +318,7 @@ def create_report_files_for_cluster(cluster):
     return storage_filename, pools_filename, quota_filename
 
 
-def send_email(table_filenames):
+def send_email(cluster, table_filenames):
     msg = EmailMessage()
     formatter = BaseFormatter(table_files=table_filenames)
     html = formatter.get_html()
@@ -333,7 +333,7 @@ def send_email(table_filenames):
         encoders.encode_base64(part)
         part.add_header("Content-Disposition", "attachment", filename=fpath.name)
         msg.attach(part)
-    msg["Subject"] = f"Quota Usage Report for {datetime.date.today()}"
+    msg["Subject"] = f"Quota Usage Report for the {cluster} cluster on {datetime.date.today()}"
     msg["From"] = options.sender
     msg["To"] = options.receivers
 
@@ -344,11 +344,9 @@ def send_email(table_filenames):
 
 def main(args):
     parse_args(args)
-    table_filenames = []
     for cluster in options.cluster_clients:
-        cluster_filenames = create_report_files_for_cluster(cluster)
-        table_filenames.extend(cluster_filenames)
-    send_email(table_filenames)
+        cluster_filenames = list(create_report_files_for_cluster(cluster))
+        send_email(cluster, cluster_filenames)
 
 
 if __name__ == "__main__":
