@@ -290,7 +290,7 @@ def create_report_files_for_cluster(cluster):
         "Percent Bytes Used (%)",
         "File Count Quota",
         "File Count Usage",
-        "Percent File Count Usage (%)",
+        "Percent File Count Used (%)",
         "Last Modified",
         "Backing Pool",
     )
