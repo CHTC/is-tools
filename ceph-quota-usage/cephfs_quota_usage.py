@@ -327,12 +327,8 @@ def send_email(cluster, table_filenames):
     # Add attachments
     for fname in table_filenames:
         fpath = Path(fname)
-        part = MIMEBase("application", "octet-stream")
         with fpath.open("rb") as f:
-            part.set_payload(f.read())
-        encoders.encode_base64(part)
-        part.add_header("Content-Disposition", "attachment", filename=fpath.name)
-        msg.attach(part)
+            msg.add_attachment(f.read(), "application", "octet-stream", filename=fname)
     msg["Subject"] = f"Quota Usage Report for the {cluster} cluster on {datetime.date.today()}"
     msg["From"] = options.sender
     msg["To"] = options.receivers
