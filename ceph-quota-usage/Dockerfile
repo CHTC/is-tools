@@ -1,4 +1,4 @@
-FROM quay.io/ceph/ceph:v16.2.14
+FROM quay.io/ceph/ceph:v16.2.15
 
 ADD ./cephfs_quota_usage.py /
 ADD ./email_formatter.py /
