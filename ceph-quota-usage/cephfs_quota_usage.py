@@ -20,7 +20,6 @@ DEFAULT_REPORT_DIRS = [
     "HTC:/htcstaging/",
     "HTC:/htcstaging/groups/",
     "HTC:/htcstaging/stash/",
-    "HTC:/htcstaging/stash_protected/",
     "HTC:/htcprojects/",
     "HPC:/home/",
     "HPC:/home/groups/",
