@@ -17,10 +17,9 @@ from email.message import EmailMessage
 from email_formatter import BaseFormatter
 
 DEFAULT_REPORT_DIRS = [
-    "HTC:/htcstaging/",
-    "HTC:/htcstaging/groups/",
-    "HTC:/htcstaging/stash/",
-    "HTC:/htcprojects/",
+    "HTC:/staging/",
+    "HTC:/staging/groups/",
+    "HTC:/projects/",
     "HPC:/home/",
     "HPC:/home/groups/",
     "HPC:/scratch/",
@@ -31,7 +30,7 @@ DEFAULT_REPORT_DIRS = [
 DEFAULT_REPORT_PATTERN = "Quota_Usage_Report"
 DEFAULT_SENDER_ADDRESS = "wnswanson@wisc.edu"
 DEFAULT_RECEIVER_ADDRESSES = ["wnswanson@wisc.edu"]
-DEFAULT_CLUSTERS = ["HTC:INF-896", "HPC:quotareport"]
+DEFAULT_CLUSTERS = ["HTC:INF-896:htc-cephfs", "HPC:quotareport:cephfs"]
 
 
 class Options:
@@ -42,6 +41,7 @@ class Options:
     sender = None
     receivers = None
     cluster_clients = None
+    filesystem_names = None
     sort_by = "bytes_used"
     sort_reverse = True
 
@@ -80,10 +80,14 @@ def parse_args(args):
     options.receivers = parsed_args.receivers
     # Create Cluster-Identifier to Client-Name dictionary
     cluster_clients = dict()
+    # Create Cluster-Identifier to Filesystem-Name dictionary
+    filesystem_names = dict()
     for cluster in parsed_args.clusters:
         cluster_client_split = str(cluster).split(":")
         cluster_clients[cluster_client_split[0]] = cluster_client_split[1]
+        filesystem_names[cluster_client_split[0]] = cluster_client_split[2]
     options.cluster_clients = cluster_clients
+    options.filesystem_names = filesystem_names
 
 
 # TODO: better class name
@@ -94,7 +98,7 @@ class CephFS_Wrapper:
     cluster = None
     fs = None
 
-    def __init__(self, cluster_identifier, client_name):
+    def __init__(self, cluster_identifier, client_name, filesytem_name):
         cluster = rados.Rados(
             name=f"client.{client_name}",
             clustername="ceph",
@@ -104,7 +108,7 @@ class CephFS_Wrapper:
         self.cluster = cluster
         self.cluster.connect()
         fs = cephfs.LibCephFS(rados_inst=self.cluster)
-        fs.mount(b"/", b"cephfs")
+        fs.mount(b"/", bytes(filesytem_name.encode()))
         self.fs = fs
 
     def __del__(self):
@@ -280,7 +284,7 @@ def create_filename(cluster, pattern):
 
 
 def create_report_files_for_cluster(cluster):
-    cluster_fs = CephFS_Wrapper(cluster, options.cluster_clients[cluster])
+    cluster_fs = CephFS_Wrapper(cluster, options.cluster_clients[cluster], options.filesystem_names[cluster])
 
     quotas_header = (
         "Path",
