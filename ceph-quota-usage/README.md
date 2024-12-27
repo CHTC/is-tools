@@ -54,7 +54,7 @@ The names of these sub-directories are how different clusters will be referred t
 
 ### Example Directory Structure and accompanying command line args
 
-If you want the script to be able to report on two clusters you call `HTC` and `HPC` with clients `client.HTC-user` and `client.HPC-readonly` for their respective clusters, you would set up your directory structure like so:
+If you want the script to be able to report on two clusters you call `HTC` and `HPC` with clients `client.HTC-user` and `client.HPC-readonly` and filesystem names `htc-cephfs` and `hpc-cephfs` for their respective clusters, you would set up your directory structure like so:
 
 ```
 top_level
@@ -72,7 +72,7 @@ top_level
 
 And call the script from the command line as such:
 
-`/path/to/cephfs_quota_usage.py -c HTC:HTC-user HPC:HPC-readonly -d HTC:/foo/bar/baz/ HPC:/foo/bar/baz/ HPC:/fizz/buzz/`
+`/path/to/cephfs_quota_usage.py -c HTC:HTC-user:htc-cephfs HPC:HPC-readonly:hpc-cephfs -d HTC:/foo/bar/baz/ HPC:/foo/bar/baz/ HPC:/fizz/buzz/`
 
 This would have the script report on the `/foo/bar/baz/` directory of the `HTC` cluster and the `/foo/bar/baz/` and `/fizz/buzz/` directories of the `HPC` cluster, with default values for output-file-pattern, sender and receivers.
 
@@ -81,11 +81,11 @@ This would have the script report on the `/foo/bar/baz/` directory of the `HTC` 
 To set which clusters and directories the script will report on, which email addresses will receive the reports (with what reply addresses), and what filenames will be used for the reports, several command line options are available.
 
       - "-c", "--clusters":
-            After specifying this option, space-delimited list the colon-split pairs of cluster reference and the name of the client to be used to access that cluster.
+            After specifying this option, space-delimited list the colon-split pairs of cluster reference, client name, and filesystem name to be used to access that cluster.
 
             Example usages:
-                "... -c <name-of-directory-with-cluster-information>:<name-of-client>"
-                "... -c <cluster1_identifier>:readonlyuser <cluster2_identifier>:clusterclient"
+                "... -c <name-of-directory-with-cluster-information>:<name-of-client>:<name-of-filesystem>"
+                "... -c <cluster1_identifier>:readonlyuser:cephfs <cluster2_identifier>:clusterclient:storagefs"
 
       - "-d", "--directories":
             After specifying this option, space-delimited list the colon-split pairs of cluster reference and absolute path to a directory on that cluster to include in the report for that cluster (sub-directories of directories specified with this option are also automatically included for reporting).
