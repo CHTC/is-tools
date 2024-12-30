@@ -30,7 +30,7 @@ DEFAULT_REPORT_DIRS = [
 DEFAULT_REPORT_PATTERN = "Quota_Usage_Report"
 DEFAULT_SENDER_ADDRESS = "wnswanson@wisc.edu"
 DEFAULT_RECEIVER_ADDRESSES = ["wnswanson@wisc.edu"]
-DEFAULT_CLUSTERS = ["HTC:INF-896:htc-cephfs", "HPC:quotareport:cephfs"]
+DEFAULT_CLUSTERS = ["HTC:INF-896:htc-cephfs:/staging,/projects", "HPC:quotareport:cephfs:/"]
 
 
 class Options:
@@ -42,6 +42,7 @@ class Options:
     receivers = None
     cluster_clients = None
     filesystem_names = None
+    cluster_mount_paths = None
     sort_by = "bytes_used"
     sort_reverse = True
 
@@ -82,12 +83,16 @@ def parse_args(args):
     cluster_clients = dict()
     # Create Cluster-Identifier to Filesystem-Name dictionary
     filesystem_names = dict()
+    # Create Cluster-Identifier to Mount-Paths dictionary
+    cluster_mount_paths = dict()
     for cluster in parsed_args.clusters:
         cluster_client_split = str(cluster).split(":")
         cluster_clients[cluster_client_split[0]] = cluster_client_split[1]
         filesystem_names[cluster_client_split[0]] = cluster_client_split[2]
+        cluster_mount_paths[cluster_client_split[0]] = cluster_client_split[3].split(",")
     options.cluster_clients = cluster_clients
     options.filesystem_names = filesystem_names
+    options.cluster_mount_paths = cluster_mount_paths
 
 
 # TODO: better class name
@@ -98,7 +103,7 @@ class CephFS_Wrapper:
     cluster = None
     fs = None
 
-    def __init__(self, cluster_identifier, client_name, filesytem_name):
+    def __init__(self, cluster_identifier, client_name, filesytem_name, mount_path):
         cluster = rados.Rados(
             name=f"client.{client_name}",
             clustername="ceph",
@@ -108,7 +113,7 @@ class CephFS_Wrapper:
         self.cluster = cluster
         self.cluster.connect()
         fs = cephfs.LibCephFS(rados_inst=self.cluster)
-        fs.mount(b"/", bytes(filesytem_name.encode()))
+        fs.mount(bytes(mount_path.encode()), bytes(filesytem_name.encode()))
         self.fs = fs
 
     def __del__(self):
@@ -163,7 +168,7 @@ class CephFS_Wrapper:
         bytes_entry = self.get_quota_usage_entry(path, "bytes", "ceph.quota.max_bytes", "ceph.dir.rbytes")
         files_entry = self.get_quota_usage_entry(path, "files", "ceph.quota.max_files", "ceph.dir.rfiles")
         rctime = round(float(self.get_xattr(path, "ceph.dir.rctime")))
-        dir_backing_pool = self.get_xattr(path, "ceph.dir.layout.pool")
+        dir_backing_pool = json.loads(self.get_xattr(path, "ceph.dir.layout.json"))["pool_name"]
 
         # Gibibyte conversion for byte quota and usage
         if bytes_entry:
@@ -175,20 +180,11 @@ class CephFS_Wrapper:
         if rctime and not rctime is "":
             last_modified_date = datetime.datetime.utcfromtimestamp(rctime).strftime("%Y-%m-%d")
 
-        backing_pool = None
-        if not dir_backing_pool is "":
-            backing_pool = dir_backing_pool
-        else:
-            for parent in Path(path).parents:
-                if not self.get_xattr(str(parent), "ceph.dir.layout.pool") is "":
-                    backing_pool = self.get_xattr(str(parent), "ceph.dir.layout.pool")
-                    break
-
-        if not None in (bytes_entry, files_entry, last_modified_date, backing_pool):
+        if not None in (bytes_entry, files_entry, last_modified_date):
             row.update(bytes_entry)
             row.update(files_entry)
             row["last_modified_date"] = last_modified_date
-            row["backing_pool"] = backing_pool
+            row["backing_pool"] = dir_backing_pool
             return row
         else:
             return None
@@ -246,15 +242,21 @@ def write_to_file(filename, header, rows):
                 writer.writerow(row.values())
 
 
-def get_quota_rows(cluster_fs, cluster_name):
+def get_quota_rows(cluster_fs, cluster_name, mount_path):
     rows = []
     toplevel_quota_usages = []
     subdir_quota_usages = []
     for path in options.report_dirs[cluster_name]:
-        toplevel_entry = cluster_fs.get_report_entry(path)
-        if toplevel_entry:
-            toplevel_quota_usages.append(toplevel_entry)
-        subdir_quota_usages.extend(cluster_fs.get_report_entries_dir(path))
+        if os.path.commonpath([mount_path, path]) == mount_path:
+            mount_relative_path = os.path.relpath(path, mount_path)
+            toplevel_entry = cluster_fs.get_report_entry(mount_relative_path)
+            if toplevel_entry:
+                toplevel_entry["path"] = path
+                toplevel_quota_usages.append(toplevel_entry)
+            dir_entries = cluster_fs.get_report_entries_dir(mount_relative_path)
+            for entry in dir_entries:
+                entry["path"] = os.path.normpath(os.path.join(mount_path, entry["path"]))
+            subdir_quota_usages.extend(dir_entries)
 
     rows.extend(toplevel_quota_usages)
 
@@ -284,8 +286,6 @@ def create_filename(cluster, pattern):
 
 
 def create_report_files_for_cluster(cluster):
-    cluster_fs = CephFS_Wrapper(cluster, options.cluster_clients[cluster], options.filesystem_names[cluster])
-
     quotas_header = (
         "Path",
         "Byte Quota (Gibibytes)",
@@ -297,7 +297,12 @@ def create_report_files_for_cluster(cluster):
         "Last Modified",
         "Backing Pool",
     )
-    quota_rows = get_quota_rows(cluster_fs, cluster)
+
+    quota_rows = []
+    for mount_path in options.cluster_mount_paths[cluster]:
+        cluster_fs = CephFS_Wrapper(cluster, options.cluster_clients[cluster], options.filesystem_names[cluster], mount_path)
+        quota_rows.extend(get_quota_rows(cluster_fs, cluster, mount_path))
+
     quota_filename = create_filename(cluster, options.report_file_pattern)
     write_to_file(quota_filename, quotas_header, quota_rows)
 
